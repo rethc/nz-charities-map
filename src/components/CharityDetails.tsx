@@ -95,7 +95,7 @@ export function CharityDetails({
           {detail.status === 'ready' &&
             ((detail.detail && formatAddress(detail.detail)) || <span className="text-muted">Not listed</span>)}
           {detail.status === 'error' && (
-            <span className="text-muted">Couldn't load the address. The register profile lists it.</span>
+            <span className="text-muted">Couldn't load the address. The charity summary lists it.</span>
           )}
         </dd>
       </dl>
@@ -105,9 +105,9 @@ export function CharityDetails({
           href={registerUrl(point.cc)}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 rounded-lg bg-ink px-3.5 py-2 text-[0.9375rem] font-semibold text-paper hover:bg-ink-soft"
+          className="inline-flex grow items-center justify-center gap-2 rounded-lg bg-ink px-3.5 py-2 text-[0.9375rem] font-semibold text-paper hover:bg-ink-soft"
         >
-          Open register profile
+          Open charity summary
           <ExternalIcon size={16} />
           <span className="sr-only">(opens in a new tab)</span>
         </a>
@@ -141,7 +141,7 @@ function CopyLinkButton({ cc }: { cc: string }) {
     <button
       type="button"
       onClick={copy}
-      className="inline-flex items-center gap-2 rounded-lg border border-line px-3.5 py-2 text-[0.9375rem] font-semibold hover:border-ink"
+      className="inline-flex grow items-center justify-center gap-2 rounded-lg border border-line px-3.5 py-2 text-[0.9375rem] font-semibold hover:border-ink"
     >
       <LinkIcon size={16} />
       <span aria-live="polite">{state === 'copied' ? 'Link copied' : state === 'failed' ? "Couldn't copy" : 'Copy link'}</span>

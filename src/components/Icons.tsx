@@ -100,3 +100,9 @@ export function Spinner({ size = 18, className = '' }: { size?: number; classNam
     </svg>
   )
 }
+
+export const ChevronDownIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m6 9 6 6 6-6" />
+  </Svg>
+)

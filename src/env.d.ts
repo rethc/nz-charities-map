@@ -10,6 +10,9 @@ interface ImportMetaEnv {
   readonly VITE_LINZ_BASEMAPS_KEY?: string
 }
 
+/** Commit and build time, injected by vite.config.ts. */
+declare const APP_BUILD: string
+
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }

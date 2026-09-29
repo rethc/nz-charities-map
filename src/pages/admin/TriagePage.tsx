@@ -423,7 +423,7 @@ function Triage({ email }: { email: string | null }) {
                       rel="noopener noreferrer"
                       className="inline-flex flex-none items-center gap-1 rounded text-sm font-semibold underline underline-offset-4"
                     >
-                      Register profile
+                      Charity summary
                       <ExternalIcon size={14} />
                       <span className="sr-only">(opens in a new tab)</span>
                     </a>
@@ -590,7 +590,7 @@ function Triage({ email }: { email: string | null }) {
                         </button>
                       </div>
                       <p className="mt-3 hidden text-xs text-muted md:block">
-                        Shortcuts: J for next, K for previous, Ctrl + Enter (⌘ + Enter on a Mac) to save.
+                        Shortcuts: J for next, K for previous, Ctrl + Enter to save.
                       </p>
                     </>
                   )}

@@ -25,6 +25,9 @@ type Selection =
   | { kind: 'charity'; cc: string; group: Group | null; focus: boolean }
   | { kind: 'group'; group: Group; focus: boolean }
 
+/** Room below a dot for its name label, so the label isn't hidden under the bottom sheet. */
+const LABEL_ROOM = 56
+
 /** "Zoom to these" is offered when the matches are few enough to be worth framing. */
 const MAX_FIT = 5000
 
@@ -129,6 +132,7 @@ export function MapPage() {
 
   const pickFromSearch = useCallback((point: CharityPoint) => {
     setNotice(null)
+    setSectors((prev) => (prev.size && !prev.has(point.sector) ? new Set() : prev))
     setSelection({ kind: 'charity', cc: point.cc, group: null, focus: true })
     mapRef.current?.flyTo(point.lonLat, 15)
   }, [])
@@ -166,7 +170,7 @@ export function MapPage() {
   const [selLon, selLat] = selectedLonLat ?? []
   useEffect(() => {
     if (isDesktop || selLon === undefined || selLat === undefined || sheetHeight === 0) return
-    mapRef.current?.ensureVisible([selLon, selLat], { top: headerBox.bottom, right: 0, bottom: sheetHeight, left: 0 })
+    mapRef.current?.ensureVisible([selLon, selLat], { top: headerBox.bottom, right: 0, bottom: sheetHeight + LABEL_ROOM, left: 0 })
   }, [isDesktop, selLon, selLat, sheetHeight, headerBox.bottom])
 
   const fitPadding = useMemo<Insets>(
