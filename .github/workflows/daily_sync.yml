@@ -1,0 +1,79 @@
+name: Daily charities sync
+
+on:
+  schedule:
+    # GitHub cron is UTC and ignores daylight saving:
+    # 14:00 UTC = 02:00 NZST (winter) / 03:00 NZDT (summer).
+    - cron: "0 14 * * *"
+    # Weekly full reconciliation (also prunes deregistered charities):
+    # Saturday 15:30 UTC = Sunday 03:30 NZST / 04:30 NZDT.
+    - cron: "30 15 * * 6"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "incremental = changes since the last good run; full = everything + prune"
+        type: choice
+        options: [incremental, full]
+        default: incremental
+      max_geocode:
+        description: "Max addresses to geocode this run (use ~15000 for the first backfill)"
+        type: number
+        default: 3000
+      retry_review:
+        description: "Also re-try everything in the NEEDS_REVIEW queue"
+        type: boolean
+        default: false
+
+# Never run two syncs at once; a queued run waits for the current one.
+concurrency:
+  group: charities-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      LINZ_API_KEY: ${{ secrets.LINZ_API_KEY }}
+      GEOCODER_CONTACT: ${{ vars.GEOCODER_CONTACT || format('https://github.com/{0}', github.repository) }}
+      GEOCODERS: ${{ vars.GEOCODERS || 'linz,photon' }}
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check required secrets
+        run: |
+          missing=0
+          for name in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
+            if [ -z "${!name}" ]; then echo "::error::Repository secret $name is not set"; missing=1; fi
+          done
+          if [ -z "$LINZ_API_KEY" ]; then
+            echo "::warning::LINZ_API_KEY is not set — falling back to Photon only (less precise)"
+          fi
+          exit $missing
+
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+          cache-dependency-glob: scripts/sync_charities.py
+
+      - name: Unit tests
+        run: uvx --python 3.13 --with httpx pytest scripts/tests -q
+
+      - name: Sync and geocode
+        env:
+          MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || (github.event.schedule == '30 15 * * 6' && 'full' || 'incremental') }}
+          MAX_GEOCODE: ${{ inputs.max_geocode || 3000 }}
+          RETRY_REVIEW: ${{ inputs.retry_review && '--retry-review' || '' }}
+        run: |
+          uv run --python 3.13 scripts/sync_charities.py \
+            --mode "$MODE" \
+            --max-geocode "$MAX_GEOCODE" \
+            --time-budget-minutes 150 \
+            --publish-snapshot \
+            $RETRY_REVIEW

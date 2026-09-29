@@ -1,0 +1,9 @@
+# Netlify reads this file from the publish directory (Vite copies public/ into dist/).
+# Rules match top to bottom; the first match wins.
+
+# 1. API: /api/geocode → netlify/functions/geocode.mts
+/api/*    /.netlify/functions/:splat    200
+
+# 2. SPA fallback: every other path is handled by React Router (/admin/triage etc.).
+#    Status 200 = rewrite (URL stays the same). Real files in dist/ still win.
+/*        /index.html                   200
