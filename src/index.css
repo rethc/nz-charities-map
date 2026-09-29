@@ -1,13 +1,27 @@
 @import "tailwindcss";
 
 /*
+ * Atkinson Hyperlegible Next only has a slashed zero. Borrow a plain "0" (that one
+ * character, via unicode-range) from Work Sans, scaled to Atkinson's figure height.
+ * The file holds just that glyph (~2 KB); licence in assets/fonts/plain-zero-OFL.txt.
+ */
+@font-face {
+  font-family: "Plain Zero";
+  src: url("./assets/fonts/plain-zero.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+  unicode-range: U+0030;
+  size-adjust: 101.8%;
+}
+
+/*
  * Design tokens
  * Harbour ink carries the interface; kōwhai is reserved for "this one" —
  * the selected place, keyboard focus and the brand ring. Sector colours only
  * ever appear on map points and their matching legend dots.
  */
 @theme {
-  --font-sans: "Atkinson Hyperlegible Next Variable", "Atkinson Hyperlegible Next", "Atkinson Hyperlegible",
+  --font-sans: "Plain Zero", "Atkinson Hyperlegible Next Variable", "Atkinson Hyperlegible Next", "Atkinson Hyperlegible",
     ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 
   --color-ink: #12333a;
