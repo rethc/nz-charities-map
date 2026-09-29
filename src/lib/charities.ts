@@ -4,7 +4,7 @@ import { env, snapshotUrl } from './env'
 import { NZ_EXTENT, type LonLat } from './geo'
 import { rpcGet, selectCharity } from './publicApi'
 import { fold } from './search'
-import { buildSectors, OTHER_COLOUR, UNCATEGORISED, type SectorInfo } from './sectors'
+import { buildSectors, cleanSectorName, OTHER_COLOUR, type SectorInfo } from './sectors'
 
 export interface CharityPoint {
   index: number
@@ -69,7 +69,7 @@ export async function loadCharities(signal?: AbortSignal): Promise<CharityDatase
 export function buildDataset(data: CharitiesInViewCompact, source: CharityDataset['source']): CharityDataset {
   const counts = new Map<string, number>()
   const points = data.rows.map(([cc, name, sector, lon, lat, place], index): CharityPoint => {
-    const sectorName = sector?.trim() || UNCATEGORISED
+    const sectorName = cleanSectorName(sector)
     counts.set(sectorName, (counts.get(sectorName) ?? 0) + 1)
     const nameKey = fold(name)
     const ccKey = cc.toLowerCase()
