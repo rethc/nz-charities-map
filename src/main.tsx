@@ -1,4 +1,4 @@
-import '@fontsource-variable/atkinson-hyperlegible-next'
+import '@fontsource-variable/roboto'
 import './index.css'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'

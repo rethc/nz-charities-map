@@ -17,7 +17,7 @@
     "test": "npm run test:functions && npm run test:etl"
   },
   "dependencies": {
-    "@fontsource-variable/atkinson-hyperlegible-next": "^5.3.0",
+    "@fontsource-variable/roboto": "^5.3.0",
     "@supabase/supabase-js": "^2.117.2",
     "maplibre-gl": "^6.11.2",
     "react": "^19.3.0",
