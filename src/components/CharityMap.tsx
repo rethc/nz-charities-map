@@ -490,8 +490,11 @@ export function CharityMap({ data, selected, popup, initialZoom, fitPadding, onP
         const { clientWidth: w, clientHeight: h } = map.getContainer()
         const top = insets.top + FOCUS_MARGIN
         const bottom = h - insets.bottom - FOCUS_MARGIN
-        // What stands on the place: the pin and, on desktop, the popup above it.
-        const above = PIN.height + (popupRef.current ? popupNode.offsetHeight + POPUP_GAP : 0)
+        // What stands on the place: the pin and, on desktop, the popup above it. Room is kept for
+        // the popup at its tallest (the CSS max-height), since it grows as the details load.
+        const content = popupRef.current ? popupNode.parentElement : null
+        const popupRoom = content ? parseFloat(getComputedStyle(content).maxHeight) || content.offsetHeight : 0
+        const above = PIN.height + (content ? popupRoom + POPUP_GAP : 0)
         // Aim for the middle (of the pin, so it looks centred); give way to keep the popup on screen.
         const x = (insets.left + w - insets.right) / 2
         const y = Math.min(Math.max((top + bottom + PIN.height) / 2, top + above), bottom)

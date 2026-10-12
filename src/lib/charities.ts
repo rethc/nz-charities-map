@@ -15,6 +15,10 @@ export interface CharityPoint {
   lonLat: LonLat
   /** Shared by every charity at exactly this location (the index of the first one there). */
   spot: number
+  /** A registered group: a parent charity and its members under one registration. */
+  isGroup: boolean
+  /** CC number of the registered group this charity is a member of. */
+  partOf: string | null
   nameKey: string
   ccKey: string
   searchKey: string
@@ -25,6 +29,10 @@ export interface CharityDataset {
   byCc: Map<string, CharityPoint>
   sectors: SectorInfo[]
   colourBySector: Map<string, string>
+  /** Every registered group's name by CC number, whether or not the group itself has a pin. */
+  groupNames: Map<string, string>
+  /** A registered group's member charities that are on the map, by the group's CC number. */
+  members: Map<string, CharityPoint[]>
   generatedAt: string
   source: 'rpc' | 'snapshot'
 }
@@ -77,7 +85,9 @@ export async function loadCharities(signal?: AbortSignal): Promise<CharityDatase
 export function buildDataset(data: CharitiesInViewCompact, source: CharityDataset['source']): CharityDataset {
   const counts = new Map<string, number>()
   const spots = new Map<string, number>()
-  const points = data.rows.map(([cc, name, sector, lon, lat, place], index): CharityPoint => {
+  const groupNames = new Map(Object.entries(data.groups ?? {}))
+  const members = new Map<string, CharityPoint[]>()
+  const points = data.rows.map(([cc, name, sector, lon, lat, place, groupCc], index): CharityPoint => {
     const sectorName = cleanSectorName(sector)
     counts.set(sectorName, (counts.get(sectorName) ?? 0) + 1)
     const nameKey = fold(name)
@@ -87,15 +97,26 @@ export function buildDataset(data: CharitiesInViewCompact, source: CharityDatase
     spots.set(spotKey, spot)
     return {
       index, cc, name, place, spot,
+      isGroup: groupNames.has(cc),
+      // only a group that is still registered is worth pointing to
+      partOf: groupCc && groupNames.has(groupCc) ? groupCc : null,
       sector: sectorName,
       lonLat: [lon, lat],
       nameKey, ccKey,
       searchKey: `${nameKey} ${ccKey} ${place ? fold(place) : ''}`,
     }
   })
+  for (const p of points) {
+    if (!p.partOf) continue
+    const list = members.get(p.partOf)
+    if (list) list.push(p)
+    else members.set(p.partOf, [p])
+  }
   const sectors = buildSectors(counts)
   return {
     points,
+    groupNames,
+    members,
     byCc: new Map(points.map((p) => [p.cc, p])),
     sectors,
     colourBySector: new Map(sectors.map((s) => [s.name, s.colour])),
@@ -139,6 +160,10 @@ export function fetchCharityDetail(cc: string, signal?: AbortSignal): Promise<Ch
 }
 
 export const registerUrl = (cc: string) => `https://register.charities.govt.nz/Charity/${encodeURIComponent(cc)}`
+
+/** Directions to a pin, in whichever maps app the device opens the link with. */
+export const directionsUrl = ([lon, lat]: LonLat) =>
+  `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`
 
 export function formatAddress(d: Pick<CharityDetail, 'street' | 'suburb' | 'city' | 'postcode'>): string | null {
   const suburb = d.suburb && d.suburb !== d.city ? d.suburb : null

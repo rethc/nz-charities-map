@@ -199,7 +199,11 @@
   animation: popup-in 160ms ease-out;
 }
 
+/* Capped so the pin below it stays on screen; longer details scroll inside. */
 .charity-popup .maplibregl-popup-content {
+  max-height: min(30rem, calc(100dvh - 7rem));
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 0;
   border-radius: 0.875rem;
   box-shadow: var(--shadow-float);

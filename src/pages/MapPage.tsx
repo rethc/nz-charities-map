@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router'
 import { BottomSheet } from '../components/BottomSheet'
-import { CharityDetails, CharityGroup } from '../components/CharityDetails'
+import { CharityDetails, CharityGroup, type PartOf } from '../components/CharityDetails'
 import {
   CharityMap,
   type CharityMapHandle,
@@ -42,7 +42,8 @@ const linkButton =
 
 function selectionFromUrl(params: URLSearchParams): Selection | null {
   const cc = params.get('cc')?.trim().toUpperCase()
-  return cc && /^CC\d+$/.test(cc) ? { kind: 'charity', cc, group: null, focus: false } : null
+  // a registered group can carry a suffixed number (CC11026-0)
+  return cc && /^CC\d+(-\d+)?$/.test(cc) ? { kind: 'charity', cc, group: null, focus: false } : null
 }
 
 export function MapPage() {
@@ -155,7 +156,8 @@ export function MapPage() {
     setCamera((c) => ({ key: c.key + 1 }))
   }, [])
 
-  const pickFromSearch = useCallback((point: CharityPoint) => {
+  /** Show a charity chosen by name (a search result, a group's member) and move the map to it. */
+  const showCharity = useCallback((point: CharityPoint) => {
     setNotice(null)
     setSectors((prev) => (prev.size && !prev.has(point.sector) ? new Set() : prev))
     setSelection({ kind: 'charity', cc: point.cc, group: null, focus: true })
@@ -229,11 +231,21 @@ export function MapPage() {
   if (dataset && selection?.kind === 'charity' && selectedPoint) {
     const { focus } = selection
     const group = selection.group ?? neighbours
+    // Registered groups: a member names its group, and a group lists its members.
+    const groupName = selectedPoint.partOf ? dataset.groupNames.get(selectedPoint.partOf) : undefined
+    const partOf: PartOf | null =
+      selectedPoint.partOf && groupName
+        ? { name: groupName, point: dataset.byCc.get(selectedPoint.partOf) ?? null }
+        : null
     panel = (
       <CharityDetails
         key={selectedPoint.cc}
         point={selectedPoint}
         colour={colourOf(selectedPoint.sector)}
+        partOf={partOf}
+        members={selectedPoint.isGroup ? dataset.members.get(selectedPoint.cc) : undefined}
+        colourOf={colourOf}
+        onGoTo={showCharity}
         titleId={titleId}
         focusOnMount={focus}
         onClose={() => closeSelection(focus)}
@@ -318,7 +330,7 @@ export function MapPage() {
           onChange={setQuery}
           results={search?.top ?? null}
           totalMatches={search?.matches.size ?? 0}
-          onPick={pickFromSearch}
+          onPick={showCharity}
           colourOf={colourOf}
           inputRef={searchRef}
         />

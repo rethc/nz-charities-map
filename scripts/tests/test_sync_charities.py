@@ -156,6 +156,8 @@ def test_fetch_groups_reads_the_groups_entity_as_charities():
         "StreetAddressTownCity": "Auckland", "StreetAddressPostcode": "1010", "StreetAddressCountry": None,
         "MainSectorId": 7, "ModifiedOn": "2024-01-01T00:00:00Z",
     }
+    group |= {"Telephone": "09 373 5635", "CharityEmailAddress": "info@aka.org.nz", "Website": "www.aka.org.nz",
+              "MainActivityId": 9, "MainBeneficiaryId": 2}
     pages = {0: [group, {**group, "GroupId": 150, "RegistrationNumber": "CC11026-0"}], 150: []}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -167,14 +169,121 @@ def test_fetch_groups_reads_the_groups_entity_as_charities():
 
     client = httpx.Client(transport=httpx.MockTransport(handler))
     records = list(sc.fetch_groups(client, since=datetime(2026, 9, 1, tzinfo=UTC), registered_only=False))
-    charity, suffixed = (sc.to_source_charity(r, {7: "Education / training / research"}) for r in records)
+    charity, suffixed = (
+        sc.to_source_charity(r, {7: "Education / training / research"}, {9: "Provides services"},
+                             {2: "Children / young people"}, {123: "CC22833", 150: "CC11026-0"})
+        for r in records
+    )
 
     assert (charity.cc_number, charity.name, charity.registered) == (
         "CC22833", "Auckland Kindergarten Association Group", True)
     assert charity.sector == "Education / training / research"
     assert (charity.address.street, charity.address.city) == ("80 Greys Avenue", "Auckland")
     assert charity.modified_on == datetime(2024, 1, 1, tzinfo=UTC)
-    assert suffixed is None  # CC11026-0 can't be stored: the table only takes plain CC numbers
+    assert (charity.activity, charity.beneficiary) == ("Provides services", "Children / young people")
+    assert (charity.phone, charity.email, charity.website) == ("09 373 5635", "info@aka.org.nz", "https://www.aka.org.nz")
+    # a group is marked as one, and isn't a member of itself
+    assert charity.is_group and charity.group_cc is None
+    assert suffixed.cc_number == "CC11026-0"  # some groups carry a suffixed number
+
+
+def test_member_charity_is_linked_to_its_group():
+    record = {
+        "OrganisationId": 55201, "CharityRegistrationNumber": "CC21786", "RegistrationStatus": "Registered",
+        "Name": "The Wellington City Mission (Anglican) Trust Board", "StreetAddressLine1": "4 Oxford Terrace",
+        "StreetAddressCity": "Wellington", "GroupId": 227, "MainActivityId": 9, "MainBeneficiaryId": None,
+        "CharitablePurpose": "The Mission is open to anyone\r\nwho needs assistance.  ",
+        "Telephone1": "04 245 0900", "CharityEmailAddress": "enquiries@wcm.org.nz",
+        "WebSiteURL": "https://wellingtoncitymission.org.nz/",
+    }
+    lookups = ({}, {9: "Provides services (e.g. care / counselling)"}, {4: "General public"}, {227: "CC21777"})
+    charity = sc.to_source_charity(record, *lookups)
+    assert (charity.is_group, charity.group_cc) == (False, "CC21777")
+    assert charity.purpose == "The Mission is open to anyone who needs assistance."
+    assert (charity.activity, charity.beneficiary) == ("Provides services (e.g. care / counselling)", None)
+
+    # a group that is no longer registered isn't in the lookup, so there's nothing to link to
+    assert sc.to_source_charity({**record, "GroupId": 999}, *lookups).group_cc is None
+    assert sc.to_source_charity({**record, "GroupId": None}, *lookups).group_cc is None
+
+    row = charity.db_row("2026-10-13T00:00:00+00:00")
+    assert row["group_cc"] == "CC21777" and row["is_group"] is False and row["phone"] == "04 245 0900"
+    # before the migration the table has none of the detail columns
+    assert set(charity.db_row("t", details=False)) == {
+        "cc_number", "name", "sector", "address_raw", "street", "suburb", "city", "postcode", "last_synced_at"}
+    # a lookup that failed this run leaves the stored value alone
+    assert not {"sector", "activity"} & set(charity.db_row("t", skip=["sector", "activity"]))
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("www.scouts.nz", "https://www.scouts.nz"),
+        ("https://www.cubadupa.co.nz/artists-2026/", "https://www.cubadupa.co.nz/artists-2026/"),
+        ("HTTP://www.manukauchristian.school.nz/", "HTTP://www.manukauchristian.school.nz/"),
+        ("javascript:alert(1)", None),
+        ("ftp://example.org", None),
+        ("info@example.org", None),
+        ("none yet", None),
+        ("n/a", None),
+        ("facebook", None),
+        (None, None),
+    ],
+)
+def test_clean_website_only_lets_web_addresses_through(raw, expected):
+    assert sc.clean_website(raw) == expected
+
+
+def test_clean_email_and_phone():
+    assert sc.clean_email(" enquiries@wcm.org.nz ") == "enquiries@wcm.org.nz"
+    assert sc.clean_email("not an email") is None and sc.clean_email("a@b") is None
+    assert sc.clean_phone("04 245 0900") == "04 245 0900"
+    assert sc.clean_phone("0800 SALLIES (0800 725 543)") == "0800 SALLIES (0800 725 543)"
+    assert sc.clean_phone("n/a") is None and sc.clean_phone("12345") is None
+
+
+def test_fetch_group_numbers_maps_group_ids_to_cc_numbers():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert "RegistrationStatus eq 'Registered'" in request.url.params["$filter"]
+        first = "GroupId gt 0 " in request.url.params["$filter"]
+        rows = [{"GroupId": 227, "RegistrationNumber": "CC21777"}, {"GroupId": 150, "RegistrationNumber": "cc11026-0"},
+                {"GroupId": 300, "RegistrationNumber": None}] if first else []
+        return httpx.Response(200, json={"d": {"results": rows}})
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    assert sc.fetch_group_numbers(client) == {227: "CC21777", 150: "CC11026-0"}
+
+
+def test_has_detail_columns_detects_an_unmigrated_database():
+    class Query:
+        def __init__(self, error=None):
+            self.error = error
+
+        def select(self, columns):
+            assert "group_cc" in columns and "website" in columns
+            return self
+
+        def limit(self, _n):
+            return self
+
+        def execute(self):
+            if self.error:
+                raise self.error
+            return None
+
+    class Client:
+        def __init__(self, error=None):
+            self.error = error
+
+        def table(self, name):
+            assert name == "charities"
+            return Query(self.error)
+
+    assert sc.has_detail_columns(Client())
+    missing = Exception("{'message': 'column charities.purpose does not exist', 'code': '42703'}")
+    assert not sc.has_detail_columns(Client(missing))
+    with pytest.raises(RuntimeError):  # anything else is a real failure
+        sc.has_detail_columns(Client(RuntimeError("connection reset")))
 
 
 def test_request_json_retries_then_succeeds():

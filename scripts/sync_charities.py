@@ -10,7 +10,8 @@
 Sync registered New Zealand charities into Supabase and geocode their street addresses.
 
 Pipeline
-  1. Fetch changed organisations and groups from the Charities Services OData API (keyset-paged).
+  1. Fetch changed organisations and groups from the Charities Services OData API (keyset-paged),
+     with what each one does, how to reach it, and the registered group it belongs to.
   2. Clean each street address (strip levels / PO boxes / RD numbers / care-of lines).
   3. Upsert into `public.charities`. A database trigger re-queues a record for
      geocoding whenever its published address changes (geocode_status -> NULL).
@@ -50,6 +51,7 @@ import sys
 import threading
 import time
 import unicodedata
+import urllib.parse
 from collections.abc import Iterable, Iterator
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
@@ -80,8 +82,17 @@ ODATA_FIELDS = (
     "StreetAddressCountry",
     "MainSectorId",
     "ModifiedOn",
+    # What it does, how to reach it, and its registered group. Only what the register's own
+    # summary page shows: the feed's EMailAddress1 is a contact address it does not publish.
+    "CharitablePurpose",
+    "MainActivityId",
+    "MainBeneficiaryId",
+    "Telephone1",
+    "CharityEmailAddress",
+    "WebSiteURL",
+    "GroupId",
 )
-# Registered groups live in their own entity, with three of the columns named differently.
+# Registered groups live in their own entity, with some of the columns named differently.
 ODATA_GROUP_FIELDS = (
     "GroupId",
     "RegistrationNumber",
@@ -95,12 +106,24 @@ ODATA_GROUP_FIELDS = (
     "StreetAddressCountry",
     "MainSectorId",
     "ModifiedOn",
+    "MainActivityId",
+    "MainBeneficiaryId",
+    "Telephone",
+    "CharityEmailAddress",
+    "Website",
 )
 GROUP_FIELD_ALIASES = {
     "RegistrationNumber": "CharityRegistrationNumber",
     "name": "Name",
     "StreetAddressTownCity": "StreetAddressCity",
+    "Telephone": "Telephone1",
+    "Website": "WebSiteURL",
 }
+# A registered group can carry a suffixed number (CC11026-0).
+CC_NUMBER_RE = re.compile(r"CC\d+(?:-\d+)?")
+# Columns added by the charity_details_and_groups migration.
+DETAIL_COLUMNS = ("purpose", "activity", "beneficiary", "phone", "email", "website", "is_group", "group_cc")
+PURPOSE_MAX_CHARS = 1200
 ODATA_PAGE_SIZE = 1000  # the service caps un-flagged queries at 1000 rows
 
 LINZ_WFS = "https://data.linz.govt.nz/services;key={key}/wfs"
@@ -166,8 +189,18 @@ class SourceCharity:
     sector: str | None
     modified_on: datetime | None
     address: CleanAddress
+    purpose: str | None = None
+    activity: str | None = None
+    beneficiary: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    website: str | None = None
+    is_group: bool = False
+    group_cc: str | None = None     # the registered group this charity is a member of
 
-    def db_row(self, synced_at: str, *, include_sector: bool = True) -> dict[str, Any]:
+    def db_row(self, synced_at: str, *, details: bool = True, skip: Iterable[str] = ()) -> dict[str, Any]:
+        """`skip` names columns whose lookup failed this run, so stored values aren't blanked out.
+        `details=False` suits a database without the charity_details_and_groups migration."""
         a = self.address
         row = {
             "cc_number": self.cc_number,
@@ -180,8 +213,10 @@ class SourceCharity:
             "postcode": a.postcode,
             "last_synced_at": synced_at,
         }
-        if not include_sector:  # lookup failed this run: don't blank out stored sectors
-            del row["sector"]
+        if details:
+            row |= {column: getattr(self, column) for column in DETAIL_COLUMNS}
+        for column in skip:
+            row.pop(column, None)
         return row
 
 
@@ -230,6 +265,42 @@ def clean_text(value: Any) -> str | None:
     text = unicodedata.normalize("NFC", str(value))
     text = re.sub(r"\s+", " ", text).strip(" ,;")
     return None if text.lower() in _PLACEHOLDERS else text
+
+
+_EMAIL_RE = re.compile(r"[^@\s<>()\",;:]+@[^@\s<>()\",;:]+\.[A-Za-z]{2,}")
+_HOSTNAME_RE = re.compile(r"(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}", re.I)
+
+
+def clean_cc_number(value: Any) -> str | None:
+    cc = (clean_text(value) or "").upper().replace(" ", "")
+    return cc if CC_NUMBER_RE.fullmatch(cc) else None
+
+
+def clean_email(value: Any) -> str | None:
+    text = clean_text(value)
+    return text if text and _EMAIL_RE.fullmatch(text) else None
+
+
+def clean_phone(value: Any) -> str | None:
+    """Kept as written (people type "04 245 0900", "0800 SALLIES", "ext 12"), if it holds a number."""
+    text = clean_text(value)
+    return text if text and len(text) <= 40 and sum(ch.isdigit() for ch in text) >= 7 else None
+
+
+def clean_website(value: Any) -> str | None:
+    """A browsable http(s) address, or None. Many are entered without a scheme ("www.scouts.nz")."""
+    text = clean_text(value)
+    if not text or len(text) > 300 or re.search(r"\s", text):
+        return None
+    if not re.match(r"https?://", text, re.I):
+        if "://" in text or "@" in text:  # some other scheme, or an email address
+            return None
+        text = f"https://{text}"
+    try:
+        host = urllib.parse.urlsplit(text).hostname or ""
+    except ValueError:
+        return None
+    return text if _HOSTNAME_RE.fullmatch(host) else None
 
 
 def ascii_fold(text: str) -> str:
@@ -676,28 +747,40 @@ def fetch_groups(
 ) -> Iterator[dict[str, Any]]:
     """Registered groups (a parent charity and its members under one registration), yielded
     with the Organisations column names so the rest of the pipeline treats a group like any
-    charity. A group has its own CC number; its members are already in Organisations.
-
-    A couple of groups carry a suffixed number (CC11026-0). to_source_charity() drops those:
-    the charities table only accepts plain CC numbers."""
+    charity. A group has its own CC number; its members are already in Organisations."""
     for record in fetch_keyset(client, "Groups", "GroupId", ODATA_GROUP_FIELDS,
                                since=since, registered_only=registered_only, limit=limit):
-        yield {GROUP_FIELD_ALIASES.get(k, k): v for k, v in record.items()}
+        yield {GROUP_FIELD_ALIASES.get(k, k): v for k, v in record.items()} | {"IsGroup": True}
+
+
+def fetch_group_numbers(client: httpx.Client) -> dict[int, str]:
+    """GroupId -> CC number of every registered group. Read in full on every run (there are
+    only a few hundred), so a member that changed can be linked to a group that didn't."""
+    rows = fetch_keyset(client, "Groups", "GroupId", ("GroupId", "RegistrationNumber"),
+                        since=None, registered_only=True)
+    return {int(r["GroupId"]): cc for r in rows if (cc := clean_cc_number(r.get("RegistrationNumber")))}
+
+
+def fetch_lookup(client: httpx.Client, entity: str) -> dict[int, str]:
+    """Id -> name for a lookup entity: Sectors, Activities or Beneficiaries. (The feed's
+    MainSector / MainActivity / MainBeneficiary entities number things differently and don't
+    match the ids on the records.)"""
+    try:
+        rows = odata_results(request_json(
+            client, f"{ODATA_BASE}/{entity}", params={"$format": "json"},
+            headers={"Accept": "application/json"}, what=f"Charities OData {entity.lower()}",
+        ))
+    except (ProviderError, ValueError) as exc:
+        log.warning("%s lookup unavailable (%s) — stored values will be left as they are", entity, exc)
+        return {}
+    return sector_lookup_from_rows(rows)
 
 
 def fetch_sector_names(client: httpx.Client) -> dict[int, str]:
     override = os.environ.get("SECTOR_NAMES_JSON")
     if override:
         return {int(k): str(v) for k, v in json.loads(override).items()}
-    try:
-        rows = odata_results(request_json(
-            client, f"{ODATA_BASE}/Sectors", params={"$format": "json"},
-            headers={"Accept": "application/json"}, what="Charities OData sectors",
-        ))
-    except (ProviderError, ValueError) as exc:
-        log.warning("Sector lookup unavailable (%s) — sectors will be left blank", exc)
-        return {}
-    return sector_lookup_from_rows(rows)
+    return fetch_lookup(client, "Sectors")
 
 
 def sector_lookup_from_rows(rows: list[dict[str, Any]]) -> dict[int, str]:
@@ -721,28 +804,47 @@ def sector_lookup_from_rows(rows: list[dict[str, Any]]) -> dict[int, str]:
     return lookup
 
 
-def to_source_charity(record: dict[str, Any], sectors: dict[int, str]) -> SourceCharity | None:
-    cc = (clean_text(record.get("CharityRegistrationNumber")) or "").upper().replace(" ", "")
-    name = clean_text(record.get("Name"))
-    if not re.fullmatch(r"CC\d+", cc) or not name:
-        return None
-    sector_id = record.get("MainSectorId")
+def _looked_up(lookup: dict[int, str], key: Any) -> str | None:
     try:
-        sector = sectors.get(int(sector_id)) if sector_id not in (None, "") else None
+        return lookup.get(int(key)) if key not in (None, "") else None
     except (TypeError, ValueError):
-        sector = None
+        return None
+
+
+def to_source_charity(
+    record: dict[str, Any],
+    sectors: dict[int, str],
+    activities: dict[int, str] | None = None,
+    beneficiaries: dict[int, str] | None = None,
+    group_numbers: dict[int, str] | None = None,
+) -> SourceCharity | None:
+    cc = clean_cc_number(record.get("CharityRegistrationNumber"))
+    name = clean_text(record.get("Name"))
+    if not cc or not name:
+        return None
     status = (record.get("RegistrationStatus") or "Registered").strip().lower()
+    is_group = bool(record.get("IsGroup"))
+    purpose = clean_text(record.get("CharitablePurpose"))
     return SourceCharity(
         cc_number=cc,
         name=name,
         registered=status == "registered",
-        sector=sector,
+        sector=_looked_up(sectors, record.get("MainSectorId")),
         modified_on=parse_odata_datetime(record.get("ModifiedOn")),
         address=clean_address(
             record.get("StreetAddressLine1"), record.get("StreetAddressLine2"),
             record.get("StreetAddressSuburb"), record.get("StreetAddressCity"),
             record.get("StreetAddressPostcode"), record.get("StreetAddressCountry"),
         ),
+        purpose=purpose[:PURPOSE_MAX_CHARS] if purpose else None,
+        activity=_looked_up(activities or {}, record.get("MainActivityId")),
+        beneficiary=_looked_up(beneficiaries or {}, record.get("MainBeneficiaryId")),
+        phone=clean_phone(record.get("Telephone1")),
+        email=clean_email(record.get("CharityEmailAddress")),
+        website=clean_website(record.get("WebSiteURL")),
+        is_group=is_group,
+        # a group's own GroupId is its identity, not a membership
+        group_cc=None if is_group else _looked_up(group_numbers or {}, record.get("GroupId")),
     )
 
 
@@ -1178,6 +1280,17 @@ def last_watermark(sb) -> datetime | None:
     return parse_odata_datetime(res.data[0]["source_watermark"]) if res.data else None
 
 
+def has_detail_columns(sb) -> bool:
+    """False until the charity_details_and_groups migration has been applied."""
+    try:
+        sb.table("charities").select(",".join(DETAIL_COLUMNS)).limit(1).execute()
+    except Exception as exc:  # PostgREST: 42703, "column charities.purpose does not exist"
+        if "42703" in str(exc) or "does not exist" in str(exc):
+            return False
+        raise
+    return True
+
+
 def upsert_charities(sb, rows: list[dict[str, Any]]) -> int:
     from postgrest.types import ReturnMethod
 
@@ -1400,9 +1513,17 @@ def main(argv: list[str] | None = None) -> int:
         log.info("Mode: %s%s", args.mode, f" (changes since {since.isoformat()})" if since else "")
 
         # ---- 2. Fetch + clean ---------------------------------------------------------
-        sectors = {} if args.source_csv else fetch_sector_names(http)
-        if sectors:
-            log.info("Loaded %s sector names", len(sectors))
+        sectors: dict[int, str] = {}
+        activities: dict[int, str] = {}
+        beneficiaries: dict[int, str] = {}
+        group_numbers: dict[int, str] = {}
+        if not args.source_csv:
+            sectors = fetch_sector_names(http)
+            activities = fetch_lookup(http, "Activities")
+            beneficiaries = fetch_lookup(http, "Beneficiaries")
+            group_numbers = fetch_group_numbers(http)
+            log.info("Loaded %s sector, %s activity and %s beneficiary names; %s registered groups",
+                     len(sectors), len(activities), len(beneficiaries), len(group_numbers))
         registered_only = args.mode == "full"
         raw_records: Iterable[dict[str, Any]] = (
             read_csv_source(args.source_csv) if args.source_csv
@@ -1415,7 +1536,7 @@ def main(argv: list[str] | None = None) -> int:
         deregistered: set[str] = set()
         watermark: datetime | None = None
         for record in raw_records:
-            charity = to_source_charity(record, sectors)
+            charity = to_source_charity(record, sectors, activities, beneficiaries, group_numbers)
             if charity is None:
                 continue
             stats.fetched += 1
@@ -1452,8 +1573,18 @@ def main(argv: list[str] | None = None) -> int:
         synced_at = datetime.now(UTC).isoformat()
 
         # ---- 3. Upsert (trigger re-queues moved addresses) -----------------------------
+        # A CSV export has none of the details, so it never touches those columns.
+        details = not args.source_csv and has_detail_columns(sb)
+        if not details and not args.source_csv:
+            log.warning("The charity_details_and_groups migration hasn't been applied — "
+                        "syncing without contact details and group links")
+            # without it the table only accepts plain CC numbers
+            registered = {cc: c for cc, c in registered.items() if "-" not in cc}
+        # a lookup that failed this run mustn't blank out what's stored
+        skip = [column for column, lookup in
+                (("sector", sectors), ("activity", activities), ("beneficiary", beneficiaries)) if not lookup]
         stats.upserted = upsert_charities(
-            sb, [c.db_row(synced_at, include_sector=bool(sectors)) for c in registered.values()])
+            sb, [c.db_row(synced_at, details=details, skip=skip) for c in registered.values()])
         log.info("Upserted %s charities", stats.upserted)
 
         # ---- 4. Remove deregistered charities ------------------------------------------

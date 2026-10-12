@@ -139,7 +139,7 @@ export function SearchBox({
               id={optionId(i)}
               role="option"
               tabIndex={-1}
-              aria-label={p.place ? `${p.name}, ${p.cc}, ${p.place}` : `${p.name}, ${p.cc}`}
+              aria-label={[p.name, p.cc, p.place, p.isGroup && 'registered group'].filter(Boolean).join(', ')}
               aria-selected={i === activeIndex}
               // mousedown (not click) so the input doesn't blur and close the list first
               onMouseDown={(e) => {
@@ -152,7 +152,10 @@ export function SearchBox({
               <span className="sector-dot mt-1.5 text-ink" style={{ backgroundColor: colourOf(p.sector) }} aria-hidden="true" />
               <span className="min-w-0">
                 <span className="block leading-snug font-semibold break-words">{p.name}</span>
-                <span className="block text-sm text-muted">{p.place ? `${p.cc}, ${p.place}` : p.cc}</span>
+                <span className="block text-sm text-muted">
+                  {p.place ? `${p.cc}, ${p.place}` : p.cc}
+                  {p.isGroup && ' · Registered group'}
+                </span>
               </span>
             </div>
           ))}

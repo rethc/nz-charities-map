@@ -54,6 +54,12 @@ export const BackIcon = (p: IconProps) => (
   </Svg>
 )
 
+export const DirectionsIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m3 11 18-8-8 18-2-8-8-2z" />
+  </Svg>
+)
+
 export const PinIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z" />

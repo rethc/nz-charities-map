@@ -11,7 +11,11 @@ interface BottomSheetProps {
 const DISMISS_DISTANCE = 96 // px dragged down
 const DISMISS_VELOCITY = 0.6 // px per ms (a quick flick)
 
-/** Non-modal sheet for phones: the map stays usable above it. Drag the handle down to close. */
+/**
+ * Non-modal sheet for phones: the map stays usable above it. Drag the handle down to close.
+ * Its height is capped so the selected place stays in view between it and the header; longer
+ * content scrolls inside.
+ */
 export function BottomSheet({ labelledBy, onClose, onHeightChange, children }: BottomSheetProps) {
   const sheetRef = useRef<HTMLElement>(null)
   const drag = useRef<{ startY: number; lastY: number; lastT: number; velocity: number } | null>(null)
@@ -67,7 +71,7 @@ export function BottomSheet({ labelledBy, onClose, onHeightChange, children }: B
       role="dialog"
       aria-modal="false"
       aria-labelledby={labelledBy}
-      className="animate-sheet-in fixed inset-x-0 bottom-0 z-30 flex max-h-[72dvh] flex-col rounded-t-2xl bg-white shadow-float"
+      className="animate-sheet-in fixed inset-x-0 bottom-0 z-30 flex max-h-[58dvh] flex-col rounded-t-2xl bg-white shadow-float"
     >
       <div
         onPointerDown={onPointerDown}

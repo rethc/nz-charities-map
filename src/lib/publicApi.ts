@@ -29,12 +29,27 @@ export function rpcGet<T>(fn: string, args: Record<string, string | number>, sig
   return getJson<T>(`rpc/${fn}?${params}`, signal)
 }
 
+const BASIC_COLUMNS = 'cc_number,name,sector,street,suburb,city,postcode'
+const DETAIL_COLUMNS = `${BASIC_COLUMNS},purpose,activity,beneficiary,phone,email,website`
+/** Turned off for the visit if the database turns out not to have the detail columns yet. */
+let withDetails = true
+
 export async function selectCharity(cc: string, signal?: AbortSignal): Promise<CharityDetail | null> {
-  const params = new URLSearchParams({
-    select: 'cc_number,name,sector,street,suburb,city,postcode',
-    cc_number: `eq.${cc}`,
-    limit: '1',
-  })
-  const rows = await getJson<CharityDetail[]>(`charities?${params}`, signal)
-  return rows[0] ?? null
+  const select = (columns: string) =>
+    getJson<CharityDetail[]>(
+      `charities?${new URLSearchParams({ select: columns, cc_number: `eq.${cc}`, limit: '1' })}`,
+      signal,
+    )
+  if (withDetails) {
+    try {
+      return (await select(DETAIL_COLUMNS))[0] ?? null
+    } catch (err) {
+      if (signal?.aborted) throw err
+      // Before the charity_details_and_groups migration the newer columns are refused: ask for the basics.
+      const rows = await select(BASIC_COLUMNS)
+      withDetails = false
+      return rows[0] ?? null
+    }
+  }
+  return (await select(BASIC_COLUMNS))[0] ?? null
 }

@@ -34,6 +34,18 @@ export type Database = {
           geocode_status: GeocodeStatus | null
           geocode_error: string | null
           last_synced_at: string
+          /** What it does and how to reach it: filled in by the sync, null where the register has nothing. */
+          purpose: string | null
+          activity: string | null
+          beneficiary: string | null
+          phone: string | null
+          email: string | null
+          /** Always an http(s) address (checked by the database). */
+          website: string | null
+          /** A registered group: a parent charity and its members under one registration. */
+          is_group: boolean
+          /** For a member charity, the cc_number of its registered group. */
+          group_cc: string | null
         }
         Insert: {
           id?: string
@@ -49,6 +61,14 @@ export type Database = {
           geocode_status?: GeocodeStatus | null
           geocode_error?: string | null
           last_synced_at?: string
+          purpose?: string | null
+          activity?: string | null
+          beneficiary?: string | null
+          phone?: string | null
+          email?: string | null
+          website?: string | null
+          is_group?: boolean
+          group_cc?: string | null
         }
         Update: {
           id?: string
@@ -64,6 +84,14 @@ export type Database = {
           geocode_status?: GeocodeStatus | null
           geocode_error?: string | null
           last_synced_at?: string
+          purpose?: string | null
+          activity?: string | null
+          beneficiary?: string | null
+          phone?: string | null
+          email?: string | null
+          website?: string | null
+          is_group?: boolean
+          group_cc?: string | null
         }
         Relationships: []
       }
@@ -84,6 +112,10 @@ export type Database = {
           max_lat: number
           format?: 'compact' | 'geojson'
         }
+        Returns: Json
+      }
+      charity_group_names: {
+        Args: never
         Returns: Json
       }
       get_review_queue: {
@@ -123,13 +155,17 @@ export type Database = {
 
 export type CharityRow = Database['public']['Tables']['charities']['Row']
 
-/** Public detail view: the columns the popup/drawer reads for one charity. */
+/**
+ * Public detail view: the columns the popup/drawer reads for one charity. What it does and
+ * how to reach it are missing from a database without the charity_details_and_groups migration.
+ */
 export type CharityDetail = Pick<
   CharityRow,
   'cc_number' | 'name' | 'sector' | 'street' | 'suburb' | 'city' | 'postcode'
->
+> &
+  Partial<Pick<CharityRow, 'purpose' | 'activity' | 'beneficiary' | 'phone' | 'email' | 'website'>>
 
-/** One row of `get_charities_in_view(..., format => 'compact')`. */
+/** One row of `get_charities_in_view(..., format => 'compact')`. `group_cc` arrived with v2. */
 export type CharityTuple = [
   cc_number: string,
   name: string,
@@ -137,12 +173,15 @@ export type CharityTuple = [
   lon: number,
   lat: number,
   place: string | null,
+  group_cc?: string | null,
 ]
 
 export type CharitiesInViewCompact = {
-  v: 1
+  v: 1 | 2
   generated_at: string
   count: number
+  /** v2: every registered group's name by cc_number, whether or not it has a pin. */
+  groups?: Record<string, string>
   rows: CharityTuple[]
 }
 
@@ -151,6 +190,7 @@ export type CharityFeatureProperties = {
   name: string
   sector: string | null
   place: string | null
+  group_cc?: string | null
 }
 
 /** `get_charities_in_view(..., format => 'geojson')` */
