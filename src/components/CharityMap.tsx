@@ -10,7 +10,6 @@ import {
   type GeoJSONSource,
   type MapGeoJSONFeature,
   type MapMouseEvent,
-  type Offset,
 } from 'maplibre-gl'
 import { useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode, type Ref } from 'react'
 import { createPortal } from 'react-dom'
@@ -41,8 +40,8 @@ export interface Insets {
 
 export interface CharityMapHandle {
   /**
-   * Bring a place to the middle of the map that floating UI leaves free, with room above
-   * it for the pin and popup. Zooms in (never out) to at least `minZoom`.
+   * Bring a place to the middle of the map that floating UI leaves free, together with the
+   * popup beside it when there is one. Zooms in (never out) to at least `minZoom`.
    */
   focusOn: (lonLat: LonLat, insets: Insets, minZoom?: number) => void
   /** Pan just enough to bring a place out from under floating UI (waits for any flight to land). */
@@ -54,7 +53,7 @@ export interface CharityMapHandle {
 interface CharityMapProps {
   data: CharityFeatureCollection | null
   selected: MapSelection | null
-  /** Desktop only: React content shown in a MapLibre popup above the selected place. */
+  /** Desktop only: React content shown in a MapLibre popup beside the selected place. */
   popup: ReactNode
   initialZoom: number
   /** Space taken by floating UI, used when zooming to a cluster or to search results. */
@@ -115,19 +114,14 @@ const filters = (spot: number): Record<'points' | 'stackCount' | 'labels', Filte
   labels: ['all', ['!', isCluster], ['!', isStack], ['!', ['has', 'stacked']], notSelected(spot)],
 })
 
-/** Keeps the popup clear of the pin whichever side of the place it opens on. */
-const POPUP_GAP = 8
-const POPUP_OFFSET: Offset = {
-  center: [0, 0],
-  top: [0, POPUP_GAP],
-  'top-left': [0, POPUP_GAP],
-  'top-right': [0, POPUP_GAP],
-  bottom: [0, -(PIN.height + POPUP_GAP)],
-  'bottom-left': [0, -(PIN.height + POPUP_GAP)],
-  'bottom-right': [0, -(PIN.height + POPUP_GAP)],
-  left: [PIN.width / 2 + POPUP_GAP, -PIN.height * 0.6],
-  right: [-(PIN.width / 2 + POPUP_GAP), -PIN.height * 0.6],
-}
+/**
+ * The popup opens to the right of the pin, its arrow level with the pin's head: where the arrow
+ * points, measured from the place. Beside the pin, not above it, the popup has the whole height
+ * of the window to itself, so the details fit without scrolling.
+ */
+const POPUP_OFFSET: [number, number] = [PIN.width / 2 + 8, -PIN.height * 0.6]
+/** MapLibre's arrow, between that point and the popup's edge. */
+const POPUP_TIP = 10
 
 const pointCoords = (f: Feature): LonLat => {
   const [lon, lat] = (f.geometry as Point).coordinates
@@ -488,16 +482,22 @@ export function CharityMap({ data, selected, popup, initialZoom, fitPadding, onP
         const map = mapRef.current
         if (!map) return
         const { clientWidth: w, clientHeight: h } = map.getContainer()
+        const left = insets.left + FOCUS_MARGIN
+        const right = w - insets.right - FOCUS_MARGIN
         const top = insets.top + FOCUS_MARGIN
         const bottom = h - insets.bottom - FOCUS_MARGIN
-        // What stands on the place: the pin and, on desktop, the popup above it. Room is kept for
-        // the popup at its tallest (the CSS max-height), since it grows as the details load.
+        // Aim for the middle (of the pin, so it looks centred), keeping the whole pin in view.
+        let x = (left + right) / 2
+        let y = Math.min(Math.max((top + bottom + PIN.height) / 2, top + PIN.height), bottom)
         const content = popupRef.current ? popupNode.parentElement : null
-        const popupRoom = content ? parseFloat(getComputedStyle(content).maxHeight) || content.offsetHeight : 0
-        const above = PIN.height + (content ? popupRoom + POPUP_GAP : 0)
-        // Aim for the middle (of the pin, so it looks centred); give way to keep the popup on screen.
-        const x = (insets.left + w - insets.right) / 2
-        const y = Math.min(Math.max((top + bottom + PIN.height) / 2, top + above), bottom)
+        if (content) {
+          // On desktop the popup stands to the right of the pin: centre the two as a pair, hugging
+          // the left when they don't both fit. The popup grows above and below the pin's head as
+          // the details load, so the head goes at mid-height and the place never has to move.
+          const reach = POPUP_OFFSET[0] + POPUP_TIP + content.offsetWidth
+          x = Math.max(left + PIN.width / 2, (left + right - reach + PIN.width / 2) / 2)
+          y = (insets.top + h - insets.bottom) / 2 - POPUP_OFFSET[1]
+        }
 
         const zoom = Math.max(map.getZoom(), minZoom)
         const zooming = zoom > map.getZoom()
@@ -566,10 +566,10 @@ export function CharityMap({ data, selected, popup, initialZoom, fitPadding, onP
       closeButton: false,
       closeOnClick: false, // map clicks are handled above (a click elsewhere selects or clears)
       focusAfterOpen: false,
-      maxWidth: '24rem',
+      anchor: 'left',
       offset: POPUP_OFFSET,
+      maxWidth: 'none', // sized in index.css
       className: 'charity-popup',
-      padding: { top: 12, right: 12, bottom: 12, left: 12 },
     })
       .setDOMContent(popupNode)
       .setLngLat([selLon, selLat])

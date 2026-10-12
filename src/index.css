@@ -30,6 +30,7 @@
  * Layout breakpoints (the same queries live in src/hooks/useMediaQuery.ts for JavaScript).
  *   card:  the header floats as a card at the top left: any wide screen, and a phone on its side.
  *   pills: wide and tall enough to keep every sector pill on show; otherwise one button opens them.
+ *   roomy: a details panel wide enough for its three actions to share a row (measured on the panel, not the screen).
  */
 @custom-variant card {
   @media (min-width: 48rem), (min-width: 37.5rem) and (orientation: landscape) {
@@ -39,6 +40,12 @@
 
 @custom-variant pills {
   @media (min-width: 48rem) and (min-height: 31.3125rem) {
+    @slot;
+  }
+}
+
+@custom-variant roomy {
+  @container (min-width: 25.5rem) {
     @slot;
   }
 }
@@ -80,6 +87,12 @@
   &::-webkit-scrollbar {
     display: none;
   }
+}
+
+/* For lists that scroll inside a panel: a slim bar that keeps out of the way. */
+@utility scrollbar-slim {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-mist) transparent;
 }
 
 /* Legend dot: the ring takes the text colour so it reads on light and dark pills. */
@@ -269,21 +282,41 @@
   overflow: visible;
 }
 
+/*
+ * The details popup stands beside the pin, level with its head. MapLibre would centre it there
+ * with translate(-50%), which puts an odd height on a half pixel and blurs the text; a
+ * zero-height box has no half to shift by, and flexbox centres the popup on it instead.
+ */
 .charity-popup.maplibregl-popup {
   z-index: 5;
+  height: 0;
+  align-items: center;
   animation: popup-in 160ms ease-out;
 }
 
-/* Capped so the pin below it stays on screen; longer details scroll inside. */
+/*
+ * As tall as the details need: only a window too short for them makes it scroll inside. The
+ * sizes leave the header card and the pin to its left, the map controls to its right and the
+ * attribution below it (MapPage.tsx keeps the same room when it places the pin).
+ */
 .charity-popup .maplibregl-popup-content {
-  max-height: min(30rem, calc(100dvh - 7rem));
+  flex: none;
+  width: min(28rem, calc(100vw - 38rem));
+  max-height: calc(100dvh - 3.25rem);
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-mist) transparent;
   padding: 0;
   border-radius: 1.125rem;
   box-shadow: var(--shadow-float), 0 0 0 1px rgb(18 51 58 / 0.05);
   font: inherit;
   color: var(--color-ink);
+}
+
+/* React renders into a div of its own in there: hand the limit on, so the details can lay themselves out within it. */
+.charity-popup .maplibregl-popup-content > div {
+  max-height: inherit;
 }
 
 @media (prefers-reduced-motion: reduce) {

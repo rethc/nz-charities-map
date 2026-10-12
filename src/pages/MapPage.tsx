@@ -37,6 +37,10 @@ const PLACE_ZOOM = 15
 /** Kept free between the header and a bottom sheet, so the selected place's pin always shows. */
 const ROOM_FOR_PIN = 112
 
+/** The zoom and locate buttons down the right edge, and the attribution along the bottom, which the popup keeps clear of. */
+const ROOM_FOR_CONTROLS = 64
+const ROOM_FOR_ATTRIBUTION = 28
+
 /** "Zoom to these" is offered when the matches are few enough to be worth framing. */
 const MAX_FIT = 5000
 
@@ -56,7 +60,7 @@ export function MapPage() {
   const portrait = useMediaQuery(PORTRAIT_QUERY)
   const roomForPopup = useMediaQuery(POPUP_QUERY)
   const short = useMediaQuery(SHORT_QUERY)
-  /** Where the details go: a popup above the pin, a panel down the left edge, or a sheet along the bottom. */
+  /** Where the details go: a popup beside the pin, a panel down the left edge, or a sheet along the bottom. */
   const layout = roomForPopup ? 'popup' : short ? 'side' : 'sheet'
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -205,7 +209,9 @@ export function MapPage() {
   const framed = useRef(false)
   // The part of the map that the header and the details leave free: where the selected place belongs.
   const freeArea = useMemo<Insets | null>(() => {
-    if (layout === 'popup') return { top: 0, right: 0, bottom: 0, left: headerBox.right }
+    if (layout === 'popup') {
+      return { top: 0, right: ROOM_FOR_CONTROLS, bottom: ROOM_FOR_ATTRIBUTION, left: headerBox.right }
+    }
     if (panelSize.height === 0) return null // the sheet or side panel hasn't measured itself yet
     if (layout === 'side') return { top: 0, right: 0, bottom: 0, left: panelSize.width }
     return cardHeader

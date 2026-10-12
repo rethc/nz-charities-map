@@ -1,7 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { useCharityDetail } from '../hooks/useCharityDetail'
 import { directionsUrl, formatAddress, registerUrl, type CharityPoint } from '../lib/charities'
-import { BackIcon, CloseIcon, DirectionsIcon, ExternalIcon, LinkIcon } from './Icons'
+import { BackIcon, CheckIcon, CloseIcon, DirectionsIcon, ExternalIcon, LinkIcon } from './Icons'
 
 interface CommonProps {
   titleId: string
@@ -109,7 +109,13 @@ export function CharityDetails({
   const summary = point.isGroup ? 'group summary' : 'charity summary'
 
   return (
-    <article ref={topRef} aria-labelledby={titleId} className="p-5">
+    // A column no taller than the popup it may be in, so a group's member list gives up height before
+    // the popup has to scroll. The space at the foot is an element (not padding) so it scrolls with the rest.
+    <article
+      ref={topRef}
+      aria-labelledby={titleId}
+      className="@container flex max-h-[inherit] flex-col px-5 pt-5 after:h-5 after:flex-none"
+    >
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           {onBack && (
@@ -160,18 +166,24 @@ export function CharityDetails({
         info?.purpose && <Purpose text={info.purpose} />
       )}
 
+      {/* Two rows in a narrow panel; one row, with the copy button down to its icon, in a wide one. */}
       <div className="mt-4 flex flex-wrap gap-2">
         <a
           href={registerUrl(point.cc)}
           target="_blank"
           rel="noopener noreferrer"
-          className={`${button} basis-full bg-ink text-paper hover:bg-ink-soft`}
+          className={`${button} basis-full bg-ink text-paper hover:bg-ink-soft roomy:basis-auto roomy:px-3`}
         >
           Open {summary}
           <ExternalIcon size={16} />
           <NewTab />
         </a>
-        <a href={directionsUrl(point.lonLat)} target="_blank" rel="noopener noreferrer" className={buttonQuiet}>
+        <a
+          href={directionsUrl(point.lonLat)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`${buttonQuiet} roomy:grow-0 roomy:px-3`}
+        >
           <DirectionsIcon size={16} />
           Directions
           <NewTab />
@@ -179,7 +191,7 @@ export function CharityDetails({
         <CopyLinkButton cc={point.cc} />
       </div>
 
-      <dl className="mt-5 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2.5 border-t border-line pt-4 text-[0.9375rem] leading-snug">
+      <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 border-t border-line pt-4 text-[0.9375rem] leading-snug">
         {info?.activity && (
           <>
             <dt className={fieldName}>Activity</dt>
@@ -270,25 +282,43 @@ export function CharityDetails({
   )
 }
 
-/** The charity's own statement of what it is for; long ones start folded. */
+/** The charity's own statement of what it is for, folded to three lines when it runs longer. */
 function Purpose({ text }: { text: string }) {
   const [open, setOpen] = useState(false)
-  const long = text.length > 170
+  const [folded, setFolded] = useState(false)
+  const ref = useRef<HTMLParagraphElement>(null)
+
+  // Whether three lines hide anything depends on the panel's width, so measure.
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el || open) return
+    const measure = () => setFolded(el.scrollHeight > el.clientHeight + 1)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [open])
 
   return (
-    <div className="mt-3 text-[0.9375rem] leading-relaxed">
-      <p className={long && !open ? 'line-clamp-3' : undefined}>
+    <div className="relative mt-3 text-[0.9375rem] leading-normal">
+      <p ref={ref} className={open ? undefined : 'line-clamp-3'}>
         <span className="sr-only">Purpose: </span>
         {text}
       </p>
-      {long && (
+      {folded && !open && (
+        // on the last line, over the end of the text, which fades out underneath it
         <button
           type="button"
-          aria-expanded={open}
-          onClick={() => setOpen((v) => !v)}
-          className={`${textLink} mt-1 text-sm`}
+          aria-expanded={false}
+          onClick={() => setOpen(true)}
+          className={`${textLink} absolute right-0 bottom-0 bg-white pl-1.5 before:absolute before:inset-y-0 before:right-full before:w-12 before:bg-linear-to-r before:from-white/0 before:to-white`}
         >
-          {open ? 'Show less' : 'Show more'}
+          Show more
+        </button>
+      )}
+      {open && (
+        <button type="button" aria-expanded onClick={() => setOpen(false)} className={`${textLink} mt-1 text-sm`}>
+          Show less
         </button>
       )}
     </div>
@@ -309,11 +339,13 @@ function Members({
   const sorted = [...members].sort((a, b) => a.name.localeCompare(b.name, 'en-NZ'))
 
   return (
-    <section aria-labelledby={headingId} className="mt-5 border-t border-line pt-4">
+    <section aria-labelledby={headingId} className="mt-4 flex min-h-0 flex-col border-t border-line pt-4">
       <h3 id={headingId} className="text-sm font-semibold">
         Members on the map <span className="font-normal text-muted tabular-nums">({members.length})</span>
       </h3>
-      <ul className="mt-2 max-h-48 overflow-y-auto overscroll-contain rounded-lg border border-line">
+      <ul
+        className={`scrollbar-slim mt-2 max-h-48 overflow-y-auto overscroll-contain rounded-lg border border-line ${members.length > 1 ? 'min-h-20' : ''}`}
+      >
         {sorted.map((m) => (
           <li key={m.cc} className="border-b border-line last:border-b-0">
             <button
@@ -359,11 +391,30 @@ function CopyLinkButton({ cc }: { cc: string }) {
     }
   }
 
+  const text = state === 'copied' ? 'Link copied' : state === 'failed' ? "Couldn't copy" : 'Copy link'
   return (
-    <button type="button" onClick={copy} className={buttonQuiet}>
-      <LinkIcon size={16} />
-      <span aria-live="polite">{state === 'copied' ? 'Link copied' : state === 'failed' ? "Couldn't copy" : 'Copy link'}</span>
-    </button>
+    <span className="relative flex grow roomy:grow-0">
+      <button
+        type="button"
+        onClick={copy}
+        title="Copy link"
+        className={`${buttonQuiet} roomy:w-11 roomy:px-0 ${state === 'copied' ? 'text-fern' : ''}`}
+      >
+        {state === 'copied' ? <CheckIcon size={16} /> : <LinkIcon size={16} />}
+        <span aria-live="polite" className="roomy:sr-only">
+          {text}
+        </span>
+      </button>
+      {/* with the label down to an icon, the result shows in a bubble above the button */}
+      {state !== 'idle' && (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute right-0 bottom-full mb-1.5 hidden rounded-md bg-ink px-2 py-1 text-xs font-semibold whitespace-nowrap text-paper roomy:block"
+        >
+          {text}
+        </span>
+      )}
+    </span>
   )
 }
 
@@ -397,7 +448,7 @@ export function CharityGroup({
         </h2>
         <CloseButton onClose={onClose} label="Close list" />
       </div>
-      <ul className="max-h-80 overflow-y-auto overscroll-contain border-t border-line">
+      <ul className="scrollbar-slim max-h-80 overflow-y-auto overscroll-contain border-t border-line">
         {sorted.map((p) => (
           <li key={p.cc} className="border-b border-line last:border-b-0">
             <button
