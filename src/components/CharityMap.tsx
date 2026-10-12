@@ -3,11 +3,14 @@ import {
   AttributionControl,
   GeolocateControl,
   Map as MapLibreMap,
+  Marker,
   NavigationControl,
   Popup,
+  type ExpressionSpecification,
   type GeoJSONSource,
   type MapGeoJSONFeature,
   type MapMouseEvent,
+  type Offset,
 } from 'maplibre-gl'
 import { useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode, type Ref } from 'react'
 import { createPortal } from 'react-dom'
@@ -20,6 +23,15 @@ export type MapPick =
   | { type: 'group'; ccs: string[]; lonLat: LonLat }
   | { type: 'none' }
 
+/** The selected place, marked with a pin: one charity, or several that share an address. */
+export interface MapSelection {
+  lonLat: LonLat
+  /** `CharityPoint.spot` of the place — its dots give way to the pin. */
+  spot: number
+  colour: string
+  count: number
+}
+
 export interface Insets {
   top: number
   right: number
@@ -28,19 +40,22 @@ export interface Insets {
 }
 
 export interface CharityMapHandle {
-  /** Fly to a place, zooming in (never out) to at least `zoom`. */
-  flyTo: (lonLat: LonLat, zoom?: number) => void
+  /**
+   * Bring a place to the middle of the map that floating UI leaves free, with room above
+   * it for the pin and popup. Zooms in (never out) to at least `minZoom`.
+   */
+  focusOn: (lonLat: LonLat, insets: Insets, minZoom?: number) => void
   /** Pan just enough to bring a place out from under floating UI (waits for any flight to land). */
   ensureVisible: (lonLat: LonLat, insets: Insets) => void
   /** Zoom to show every given place. */
-  fitPoints: (points: LonLat[]) => void
+  fitPoints: (points: LonLat[], animate?: boolean) => void
 }
 
 interface CharityMapProps {
   data: CharityFeatureCollection | null
-  selectedCc: string | null
-  /** Desktop only: React content shown in a MapLibre popup anchored at `lonLat`. */
-  popup: { lonLat: LonLat; content: ReactNode } | null
+  selected: MapSelection | null
+  /** Desktop only: React content shown in a MapLibre popup above the selected place. */
+  popup: ReactNode
   initialZoom: number
   /** Space taken by floating UI, used when zooming to a cluster or to search results. */
   fitPadding: Insets
@@ -50,37 +65,76 @@ interface CharityMapProps {
 
 const SOURCE = 'charities'
 const LAYER = {
+  clusterHalo: 'charity-cluster-halo',
   clusters: 'charity-clusters',
   clusterCount: 'charity-cluster-count',
-  halo: 'charity-selected',
+  shadows: 'charity-point-shadows',
   points: 'charity-points',
   labels: 'charity-labels',
+  stackCount: 'charity-stack-count',
 } as const
+const CLICKABLE = [LAYER.clusters, LAYER.points]
 
 const INK = '#12333a'
-const KOWHAI = '#f2b705'
 /** Points stay clustered up to this zoom; beyond it every charity is drawn. */
 const CLUSTER_MAX_ZOOM = 14
 /** Clusters up to this size fetch their members so a click can fit them exactly. */
 const LEAF_LIMIT = 500
 /** Members closer together than this (≈20 m) share an address — list them instead of zooming. */
 const COLOCATED_DEG = 0.0002
+/** The selected-place pin, in CSS pixels; its tip sits on the place. */
+const PIN = { width: 30, height: 40 }
+/** Breathing room kept between a focused place (with its pin and popup) and the edge of the free area. */
+const FOCUS_MARGIN = 24
 
 const EMPTY: CharityFeatureCollection = { type: 'FeatureCollection', features: [] }
 
+const isCluster: ExpressionSpecification = ['has', 'point_count']
+/** Several charities at one address: drawn once, as a numbered badge. */
+const isStack: ExpressionSpecification = ['has', 'stack']
+const isHovered: ExpressionSpecification = ['boolean', ['feature-state', 'hover'], false]
+const clusterRadius: ExpressionSpecification = ['step', ['get', 'point_count'], 14, 25, 17, 100, 21, 1000, 26, 5000, 31]
+const stackRadius: ExpressionSpecification = ['step', ['get', 'stack'], 10.5, 10, 12, 100, 14]
+
+/** A zoom-scaled radius for single dots (`extra` widens it for the shadow); badges keep their size. */
+const pointRadius = (extra = 0): ExpressionSpecification => {
+  const at = (dot: number): ExpressionSpecification => [
+    '+',
+    ['case', isStack, stackRadius, dot],
+    ['case', isHovered, 1.5, 0],
+    extra,
+  ]
+  return ['interpolate', ['linear'], ['zoom'], 5, at(3.5), 10, at(4.5), 16, at(6.5)]
+}
+
 type Filter = NonNullable<Parameters<MapLibreMap['setFilter']>[1]>
-const selectedFilter = (cc: string | null): Filter => [
-  'all',
-  ['!', ['has', 'point_count']],
-  ['==', ['get', 'cc'], cc ?? ''],
-]
+const notSelected = (spot: number): ExpressionSpecification => ['!=', ['get', 'spot'], spot]
+const filters = (spot: number): Record<'points' | 'stackCount' | 'labels', Filter> => ({
+  points: ['all', ['!', isCluster], ['!', ['has', 'stacked']], notSelected(spot)],
+  stackCount: ['all', ['!', isCluster], isStack, notSelected(spot)],
+  labels: ['all', ['!', isCluster], ['!', isStack], ['!', ['has', 'stacked']], notSelected(spot)],
+})
+
+/** Keeps the popup clear of the pin whichever side of the place it opens on. */
+const POPUP_GAP = 8
+const POPUP_OFFSET: Offset = {
+  center: [0, 0],
+  top: [0, POPUP_GAP],
+  'top-left': [0, POPUP_GAP],
+  'top-right': [0, POPUP_GAP],
+  bottom: [0, -(PIN.height + POPUP_GAP)],
+  'bottom-left': [0, -(PIN.height + POPUP_GAP)],
+  'bottom-right': [0, -(PIN.height + POPUP_GAP)],
+  left: [PIN.width / 2 + POPUP_GAP, -PIN.height * 0.6],
+  right: [-(PIN.width / 2 + POPUP_GAP), -PIN.height * 0.6],
+}
 
 const pointCoords = (f: Feature): LonLat => {
   const [lon, lat] = (f.geometry as Point).coordinates
   return [lon!, lat!]
 }
 
-function addCharityLayers(map: MapLibreMap, selectedCc: string | null) {
+function addCharityLayers(map: MapLibreMap, selectedSpot: number) {
   map.addSource(SOURCE, {
     type: 'geojson',
     data: EMPTY,
@@ -88,26 +142,37 @@ function addCharityLayers(map: MapLibreMap, selectedCc: string | null) {
     clusterRadius: 50,
     clusterMaxZoom: CLUSTER_MAX_ZOOM,
   })
+  const filter = filters(selectedSpot)
 
+  // Clusters: an ink bubble in a soft ring, which reads as "more inside".
+  map.addLayer({
+    id: LAYER.clusterHalo,
+    type: 'circle',
+    source: SOURCE,
+    filter: isCluster,
+    paint: {
+      'circle-color': INK,
+      'circle-opacity': ['case', isHovered, 0.28, 0.16],
+      'circle-radius': ['+', clusterRadius, ['case', isHovered, 8, 6]],
+    },
+  })
   map.addLayer({
     id: LAYER.clusters,
     type: 'circle',
     source: SOURCE,
-    filter: ['has', 'point_count'],
+    filter: isCluster,
     paint: {
       'circle-color': INK,
-      'circle-radius': ['step', ['get', 'point_count'], 14, 25, 17, 100, 21, 1000, 26, 5000, 31],
-      'circle-stroke-width': 2.5,
+      'circle-radius': clusterRadius,
+      'circle-stroke-width': 2,
       'circle-stroke-color': '#ffffff',
-      'circle-stroke-opacity': 0.9,
     },
   })
-
   map.addLayer({
     id: LAYER.clusterCount,
     type: 'symbol',
     source: SOURCE,
-    filter: ['has', 'point_count'],
+    filter: isCluster,
     layout: {
       'text-field': ['to-string', ['get', 'point_count_abbreviated']],
       'text-font': LABEL_FONT_BOLD,
@@ -118,63 +183,111 @@ function addCharityLayers(map: MapLibreMap, selectedCc: string | null) {
     paint: { 'text-color': '#ffffff' },
   })
 
-  // The selected charity sits in a kōwhai ring — the same mark as the logo.
+  // Single charities: a sector-coloured dot with a white rim, lifted off the basemap by a soft shadow.
   map.addLayer({
-    id: LAYER.halo,
+    id: LAYER.shadows,
     type: 'circle',
     source: SOURCE,
-    filter: selectedFilter(selectedCc),
+    filter: filter.points,
     paint: {
-      'circle-color': KOWHAI,
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 10, 16, 15],
-      'circle-stroke-width': 2,
-      'circle-stroke-color': INK,
+      'circle-color': INK,
+      'circle-opacity': 0.35,
+      'circle-blur': 0.55,
+      'circle-radius': pointRadius(4.5),
+      'circle-translate': [0, 1.5],
     },
   })
-
   map.addLayer({
     id: LAYER.points,
     type: 'circle',
     source: SOURCE,
-    filter: ['!', ['has', 'point_count']],
+    filter: filter.points,
     paint: {
-      'circle-color': ['get', 'colour'],
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 4, 10, 5.5, 16, 8],
-      // A dark rim keeps the lighter sector colours visible on the pale basemap.
-      'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 5, 1, 14, 1.5],
-      'circle-stroke-color': INK,
-      'circle-stroke-opacity': 0.8,
+      'circle-color': ['case', isStack, INK, ['get', 'colour']],
+      'circle-radius': pointRadius(),
+      'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 5, 1.25, 14, 2],
+      'circle-stroke-color': '#ffffff',
     },
   })
-
   map.addLayer({
     id: LAYER.labels,
     type: 'symbol',
     source: SOURCE,
     minzoom: 15,
-    filter: ['!', ['has', 'point_count']],
+    filter: filter.labels,
     layout: {
       'text-field': ['get', 'name'],
       'text-font': LABEL_FONT,
       'text-size': 12,
       'text-max-width': 9,
+      'text-line-height': 1.15,
       'text-variable-anchor': ['top', 'bottom', 'left', 'right'],
-      'text-radial-offset': 0.9,
+      'text-radial-offset': 1.05,
       'text-justify': 'auto',
     },
     paint: { 'text-color': INK, 'text-halo-color': '#ffffff', 'text-halo-width': 1.5 },
   })
+
+  // Topmost, so it is placed first: the count always shows and names keep clear of the badge.
+  map.addLayer({
+    id: LAYER.stackCount,
+    type: 'symbol',
+    source: SOURCE,
+    filter: filter.stackCount,
+    layout: {
+      'text-field': ['to-string', ['get', 'stack']],
+      'text-font': LABEL_FONT_BOLD,
+      'text-size': 11.5,
+      'text-allow-overlap': true,
+      'text-padding': 7,
+    },
+    paint: { 'text-color': '#ffffff' },
+  })
 }
 
-export function CharityMap({ data, selectedCc, popup, initialZoom, fitPadding, onPick, ref }: CharityMapProps) {
+/** A pin in the sector colour, or in ink with a count where several charities share the address. */
+function SelectedPin({ colour, count }: { colour: string; count: number }) {
+  const shared = count > 1
+  return (
+    <span className="map-pin">
+      <svg width={PIN.width} height={PIN.height} viewBox="0 0 30 40" aria-hidden="true" focusable="false">
+        <path
+          d="M15 39C15 39 28 24.6 28 14.5a13 13 0 1 0-26 0C2 24.6 15 39 15 39Z"
+          fill={shared ? INK : colour}
+          stroke="#fff"
+          strokeWidth="2"
+          strokeLinejoin="round"
+        />
+        {shared ? (
+          <text
+            x="15"
+            y="15"
+            fill="#fff"
+            fontSize={count > 99 ? 10 : 12}
+            fontWeight="700"
+            textAnchor="middle"
+            dominantBaseline="central"
+          >
+            {count > 999 ? '999+' : count}
+          </text>
+        ) : (
+          <circle cx="15" cy="14.5" r="4.75" fill="#fff" />
+        )}
+      </svg>
+    </span>
+  )
+}
+
+export function CharityMap({ data, selected, popup, initialZoom, fitPadding, onPick, ref }: CharityMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const [loaded, setLoaded] = useState(false)
+  const selectedSpot = selected?.spot ?? -1
 
   // Latest props for the long-lived MapLibre event handlers.
-  const latest = useRef({ onPick, fitPadding, selectedCc })
+  const latest = useRef({ onPick, fitPadding, selectedSpot })
   useEffect(() => {
-    latest.current = { onPick, fitPadding, selectedCc }
+    latest.current = { onPick, fitPadding, selectedSpot }
   })
 
   // Create the map once.
@@ -207,7 +320,7 @@ export function CharityMap({ data, selectedCc, popup, initialZoom, fitPadding, o
     )
     withStyleFallback(map)
     map.once('load', () => {
-      addCharityLayers(map, latest.current.selectedCc)
+      addCharityLayers(map, latest.current.selectedSpot)
       setLoaded(true)
     })
 
@@ -227,9 +340,16 @@ export function CharityMap({ data, selectedCc, popup, initialZoom, fitPadding, o
     void mapRef.current?.getSource<GeoJSONSource>(SOURCE)?.setData(data ?? EMPTY)
   }, [loaded, data])
 
+  // The selected place is shown by the pin, so its own dot, badge and label step aside.
   useEffect(() => {
-    if (loaded) mapRef.current?.setFilter(LAYER.halo, selectedFilter(selectedCc))
-  }, [loaded, selectedCc])
+    const map = mapRef.current
+    if (!loaded || !map) return
+    const filter = filters(selectedSpot)
+    map.setFilter(LAYER.shadows, filter.points)
+    map.setFilter(LAYER.points, filter.points)
+    map.setFilter(LAYER.stackCount, filter.stackCount)
+    map.setFilter(LAYER.labels, filter.labels)
+  }, [loaded, selectedSpot])
 
   // Clicks and hover feedback.
   useEffect(() => {
@@ -276,7 +396,7 @@ export function CharityMap({ data, selectedCc, popup, initialZoom, fitPadding, o
           [x - r, y - r],
           [x + r, y + r],
         ],
-        { layers: [LAYER.clusters, LAYER.points] },
+        { layers: CLICKABLE },
       )
       const cluster = hits.find((f) => f.layer.id === LAYER.clusters)
       if (cluster) {
@@ -298,7 +418,8 @@ export function CharityMap({ data, selectedCc, popup, initialZoom, fitPadding, o
         ...new Set(
           points
             .filter(({ p }) => Math.hypot(p.x - nearest.p.x, p.y - nearest.p.y) <= 3)
-            .map(({ f }) => String(f.properties.cc)),
+            // a badge stands for everyone at its address
+            .flatMap(({ f }) => String(f.properties.ccs ?? f.properties.cc).split(',')),
         ),
       ]
       const lonLat = pointCoords(nearest.f)
@@ -307,24 +428,35 @@ export function CharityMap({ data, selectedCc, popup, initialZoom, fitPadding, o
       )
     }
 
+    // Dots and clusters respond to the pointer (mouse only: a tap would leave the state stuck on).
     const canvas = map.getCanvas()
-    const pointer = () => {
-      canvas.style.cursor = 'pointer'
+    let hovered: string | number | undefined
+    function setHovered(id: string | number | undefined) {
+      if (id === hovered) return
+      if (hovered !== undefined) map!.setFeatureState({ source: SOURCE, id: hovered }, { hover: false })
+      hovered = id
+      if (id !== undefined) map!.setFeatureState({ source: SOURCE, id }, { hover: true })
+      canvas.style.cursor = id === undefined ? '' : 'pointer'
     }
-    const reset = () => {
-      canvas.style.cursor = ''
-    }
+    const onMove = (e: MapMouseEvent) => setHovered(map.queryRenderedFeatures(e.point, { layers: CLICKABLE })[0]?.id)
+    const onOut = () => setHovered(undefined)
 
     map.on('click', onClick)
-    const subscriptions = [LAYER.clusters, LAYER.points].flatMap((layer) => [
-      map.on('mouseenter', layer, pointer),
-      map.on('mouseleave', layer, reset),
-    ])
+    if (window.matchMedia('(hover: hover)').matches) {
+      map.on('mousemove', onMove)
+      map.on('mouseout', onOut)
+    }
     return () => {
       map.off('click', onClick)
-      for (const s of subscriptions) s.unsubscribe()
+      map.off('mousemove', onMove)
+      map.off('mouseout', onOut)
     }
   }, [loaded])
+
+  // Desktop popup: a MapLibre Popup whose content is rendered by React through a portal.
+  const popupNode = useMemo(() => document.createElement('div'), [])
+  const popupRef = useRef<Popup | null>(null)
+  const hasPopup = Boolean(popup)
 
   useImperativeHandle(ref, () => {
     const ensureVisible = (lonLat: LonLat, insets: Insets): void => {
@@ -337,12 +469,11 @@ export function CharityMap({ data, selectedCc, popup, initialZoom, fitPadding, o
       }
       const { x, y } = map.project(lonLat)
       const { clientWidth: w, clientHeight: h } = map.getContainer()
-      const margin = 24
       const box = {
-        left: insets.left + margin,
-        right: w - insets.right - margin,
-        top: insets.top + margin,
-        bottom: h - insets.bottom - margin,
+        left: insets.left + FOCUS_MARGIN,
+        right: w - insets.right - FOCUS_MARGIN,
+        top: insets.top + FOCUS_MARGIN + PIN.height,
+        bottom: h - insets.bottom - FOCUS_MARGIN,
       }
       if (box.right <= box.left || box.bottom <= box.top) return
       if (x >= box.left && x <= box.right && y >= box.top && y <= box.bottom) return
@@ -353,43 +484,79 @@ export function CharityMap({ data, selectedCc, popup, initialZoom, fitPadding, o
     }
 
     return {
-      flyTo(lonLat, zoom = 15) {
+      focusOn(lonLat, insets, minZoom = 0) {
         const map = mapRef.current
         if (!map) return
-        const target = { center: lonLat, zoom: Math.max(map.getZoom(), zoom) }
-        if (prefersReducedMotion()) map.jumpTo(target)
-        else map.flyTo({ ...target, speed: 1.6, essential: true })
+        const { clientWidth: w, clientHeight: h } = map.getContainer()
+        const top = insets.top + FOCUS_MARGIN
+        const bottom = h - insets.bottom - FOCUS_MARGIN
+        // What stands on the place: the pin and, on desktop, the popup above it.
+        const above = PIN.height + (popupRef.current ? popupNode.offsetHeight + POPUP_GAP : 0)
+        // Aim for the middle (of the pin, so it looks centred); give way to keep the popup on screen.
+        const x = (insets.left + w - insets.right) / 2
+        const y = Math.min(Math.max((top + bottom + PIN.height) / 2, top + above), bottom)
+
+        const zoom = Math.max(map.getZoom(), minZoom)
+        const zooming = zoom > map.getZoom()
+        const from = map.project(lonLat)
+        const distance = Math.hypot(from.x - x, from.y - y)
+        if (!zooming && distance < 2) return
+        const target = { center: lonLat, zoom, offset: [x - w / 2, y - h / 2] as [number, number] }
+        if (prefersReducedMotion()) map.easeTo({ ...target, duration: 0 })
+        // A long trip, or one that zooms: fly, so the journey shows where things are.
+        else if (zooming || distance > Math.hypot(w, h)) map.flyTo({ ...target, speed: 1.6, essential: true })
+        else map.easeTo({ ...target, duration: 450 })
       },
       ensureVisible,
-      fitPoints(points) {
+      fitPoints(points, animate = true) {
         const map = mapRef.current
         const bounds = boundsOf(points)
         if (!map || !bounds) return
         map.fitBounds(bounds, {
           padding: latest.current.fitPadding,
           maxZoom: 15,
-          duration: prefersReducedMotion() ? 0 : 800,
+          duration: animate && !prefersReducedMotion() ? 800 : 0,
         })
       },
     }
-  }, [])
+  }, [popupNode])
 
-  // Desktop popup: a MapLibre Popup whose content is rendered by React through a portal.
-  const popupNode = useMemo(() => document.createElement('div'), [])
-  const popupRef = useRef<Popup | null>(null)
-  const popupLon = popup?.lonLat[0]
-  const popupLat = popup?.lonLat[1]
+  // The pin: a MapLibre Marker whose element React fills through a portal.
+  const pinNode = useMemo(() => {
+    const el = document.createElement('div')
+    el.className = 'map-pin-anchor'
+    return el
+  }, [])
+  const pinRef = useRef<Marker | null>(null)
+  const [selLon, selLat] = selected?.lonLat ?? []
 
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-    if (popupLon === undefined || popupLat === undefined) {
+    if (selLon === undefined || selLat === undefined) {
+      pinRef.current?.remove()
+      pinRef.current = null
+      return
+    }
+    if (pinRef.current) {
+      pinRef.current.setLngLat([selLon, selLat])
+      return
+    }
+    pinRef.current = new Marker({ element: pinNode, anchor: 'bottom', subpixelPositioning: true })
+      .setLngLat([selLon, selLat])
+      .addTo(map)
+  }, [selLon, selLat, pinNode])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    if (!hasPopup || selLon === undefined || selLat === undefined) {
       popupRef.current?.remove()
       popupRef.current = null
       return
     }
     if (popupRef.current) {
-      popupRef.current.setLngLat([popupLon, popupLat])
+      popupRef.current.setLngLat([selLon, selLat])
       return
     }
     popupRef.current = new Popup({
@@ -397,17 +564,19 @@ export function CharityMap({ data, selectedCc, popup, initialZoom, fitPadding, o
       closeOnClick: false, // map clicks are handled above (a click elsewhere selects or clears)
       focusAfterOpen: false,
       maxWidth: '24rem',
-      offset: 16,
+      offset: POPUP_OFFSET,
       className: 'charity-popup',
       padding: { top: 12, right: 12, bottom: 12, left: 12 },
     })
       .setDOMContent(popupNode)
-      .setLngLat([popupLon, popupLat])
+      .setLngLat([selLon, selLat])
       .addTo(map)
-  }, [popupLon, popupLat, popupNode])
+  }, [hasPopup, selLon, selLat, popupNode])
 
   useEffect(
     () => () => {
+      pinRef.current?.remove()
+      pinRef.current = null
       popupRef.current?.remove()
       popupRef.current = null
     },
@@ -421,7 +590,13 @@ export function CharityMap({ data, selectedCc, popup, initialZoom, fitPadding, o
       <div className="absolute inset-0">
         <div ref={containerRef} className="h-full w-full" />
       </div>
-      {popup && createPortal(popup.content, popupNode)}
+      {selected &&
+        createPortal(
+          // keyed by place, so the pin drops in afresh each time the selection moves
+          <SelectedPin key={selected.lonLat.join()} colour={selected.colour} count={selected.count} />,
+          pinNode,
+        )}
+      {popup && createPortal(popup, popupNode)}
     </>
   )
 }

@@ -21,6 +21,21 @@ const pillOn = 'border-paper bg-paper text-ink font-semibold'
 const textButton =
   'inline-flex h-8 items-center px-1 text-sm font-semibold text-mist underline decoration-ink-line underline-offset-4 hover:text-paper'
 
+/** Holds the filter's place while the charities load, so the header doesn't jump when they arrive. */
+export function SectorFilterSkeleton() {
+  return (
+    <div className="flex flex-wrap gap-2" aria-hidden="true">
+      {[6.5, 13.5, 17, 14, 8.5, 14.5, 10.5, 11.5, 15].map((rem, i) => (
+        <span
+          key={rem}
+          className={`h-8 animate-pulse rounded-full bg-ink-soft motion-reduce:animate-none ${i ? 'hidden md:block' : ''}`}
+          style={{ width: `${rem}rem` }}
+        />
+      ))}
+    </div>
+  )
+}
+
 /**
  * Wider screens: the pills are always on show and double as the map legend.
  * Phones: one button opens the pills below it, wrapped over several lines, so no
@@ -56,7 +71,8 @@ export function SectorFilter({ sectors, counts, selected, onToggle, onClear }: S
         id={listId}
         role="group"
         aria-label="Filter by sector"
-        className={`${open ? 'flex' : 'hidden'} mt-3 max-h-[45dvh] flex-wrap gap-2 overflow-y-auto overscroll-contain md:mt-0 md:flex md:max-h-none md:overflow-visible`}
+        // Phones: the list scrolls, fading out at the bottom edge to show there is more.
+        className={`${open ? 'flex' : 'hidden'} mt-3 max-h-[45dvh] flex-wrap gap-2 overflow-y-auto overscroll-contain pb-3 max-md:[mask-image:linear-gradient(to_bottom,#000_calc(100%-1.25rem),transparent)] md:mt-0 md:flex md:max-h-none md:overflow-visible md:pb-0`}
       >
         <button
           type="button"

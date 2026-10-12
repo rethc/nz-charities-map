@@ -7,6 +7,12 @@ export const DEFAULT_VIEW = { center: [174.76, -41.28] as LonLat, zoom: 6 }
 /** Narrow screens can't fit NZ at zoom 6 (~4° of longitude on a phone), so pull back. */
 export const MOBILE_ZOOM = 4.6
 
+/** Opposite corners of the North, South and Stewart Islands: what the map frames when it opens. */
+export const NZ_MAINLAND: LonLat[] = [
+  [166.4, -47.3],
+  [178.6, -34.4],
+]
+
 /**
  * Everything the public map shows. 165°E → 175°W crosses the antimeridian so the
  * Chatham Islands (≈176.5°W) are included; the RPC splits it into two boxes.

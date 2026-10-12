@@ -2,17 +2,23 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNod
 import { useSearchParams } from 'react-router'
 import { BottomSheet } from '../components/BottomSheet'
 import { CharityDetails, CharityGroup } from '../components/CharityDetails'
-import { CharityMap, type CharityMapHandle, type Insets, type MapPick } from '../components/CharityMap'
+import {
+  CharityMap,
+  type CharityMapHandle,
+  type Insets,
+  type MapPick,
+  type MapSelection,
+} from '../components/CharityMap'
 import { BrandMark, CloseIcon, Spinner } from '../components/Icons'
 import { SearchBox } from '../components/SearchBox'
-import { SectorFilter } from '../components/SectorFilter'
+import { SectorFilter, SectorFilterSkeleton } from '../components/SectorFilter'
 import { useCharities } from '../hooks/useCharities'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { useElementBox } from '../hooks/useElementBox'
 import { DESKTOP_QUERY, useMediaQuery } from '../hooks/useMediaQuery'
 import { toFeatureCollection, type CharityPoint } from '../lib/charities'
 import { formatCount, isTypingTarget } from '../lib/dom'
-import { DEFAULT_VIEW, MOBILE_ZOOM, type LonLat } from '../lib/geo'
+import { DEFAULT_VIEW, MOBILE_ZOOM, NZ_MAINLAND, type LonLat } from '../lib/geo'
 import { searchCharities } from '../lib/search'
 import { OTHER_COLOUR } from '../lib/sectors'
 
@@ -25,8 +31,8 @@ type Selection =
   | { kind: 'charity'; cc: string; group: Group | null; focus: boolean }
   | { kind: 'group'; group: Group; focus: boolean }
 
-/** Room below a dot for its name label, so the label isn't hidden under the bottom sheet. */
-const LABEL_ROOM = 56
+/** How far in a search result or shared link is shown. */
+const PLACE_ZOOM = 15
 
 /** "Zoom to these" is offered when the matches are few enough to be worth framing. */
 const MAX_FIT = 5000
@@ -49,6 +55,10 @@ export function MapPage() {
   const [query, setQuery] = useState(() => searchParams.get('q') ?? '')
   const [sectors, setSectors] = useState<ReadonlySet<string>>(() => new Set(searchParams.getAll('sector')))
   const [selection, setSelection] = useState<Selection | null>(() => selectionFromUrl(searchParams))
+  // A new `key` asks the map to centre on the selected place; a shared link starts with one pending.
+  const [camera, setCamera] = useState<{ key: number; zoom?: number }>(() =>
+    selection ? { key: 1, zoom: PLACE_ZOOM } : { key: 0 },
+  )
   const [notice, setNotice] = useState<string | null>(null)
   const [sheetHeight, setSheetHeight] = useState(0)
   const [initialZoom] = useState(() => (window.matchMedia(DESKTOP_QUERY).matches ? DEFAULT_VIEW.zoom : MOBILE_ZOOM))
@@ -101,22 +111,33 @@ export function MapPage() {
     if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true })
   }, [debouncedQuery, sectorKey, urlCc, searchParams, setSearchParams])
 
-  // A shared link (?cc=CC12345) flies to that charity once the data arrives.
+  // A shared link (?cc=CC12345) to a charity that isn't in the data gets an explanation instead.
   useEffect(() => {
     const cc = pendingDeepLink.current
     if (!dataset || !cc) return
     pendingDeepLink.current = null
-    const point = dataset.byCc.get(cc)
-    if (point) {
-      mapRef.current?.flyTo(point.lonLat, 15)
-    } else {
+    if (!dataset.byCc.has(cc)) {
       setSelection(null)
       setNotice(`${cc} isn't on the map. It may be deregistered, or its address hasn't been placed yet.`)
     }
   }, [dataset])
 
   const selectedPoint = selection?.kind === 'charity' ? (dataset?.byCc.get(selection.cc) ?? null) : null
-  const selectedLonLat = selection?.kind === 'group' ? selection.group.lonLat : (selectedPoint?.lonLat ?? null)
+  // Reached directly (a search, a shared link), a charity still offers the others at its address.
+  const neighbours = useMemo<Group | null>(() => {
+    if (!selectedPoint) return null
+    const ccs = visible.filter((p) => p.spot === selectedPoint.spot).map((p) => p.cc)
+    return ccs.length > 1 ? { ccs, lonLat: selectedPoint.lonLat } : null
+  }, [selectedPoint, visible])
+  // The pin takes the charity's own colour, or shows a count for several at one address.
+  const groupPoint = selection?.kind === 'group' ? (dataset?.byCc.get(selection.group.ccs[0] ?? '') ?? null) : null
+  const pinPoint = selectedPoint ?? groupPoint
+  const pinColour = pinPoint ? colourOf(pinPoint.sector) : OTHER_COLOUR
+  const pinCount = selection?.kind === 'group' ? selection.group.ccs.length : 1
+  const selected = useMemo<MapSelection | null>(
+    () => (pinPoint ? { lonLat: pinPoint.lonLat, spot: pinPoint.spot, colour: pinColour, count: pinCount } : null),
+    [pinPoint, pinColour, pinCount],
+  )
 
   const closeSelection = useCallback((returnFocus: boolean) => {
     setSelection(null)
@@ -125,16 +146,20 @@ export function MapPage() {
 
   const handlePick = useCallback((pick: MapPick) => {
     setNotice(null)
-    if (pick.type === 'none') setSelection(null)
-    else if (pick.type === 'charity') setSelection({ kind: 'charity', cc: pick.cc, group: null, focus: false })
+    if (pick.type === 'none') {
+      setSelection(null)
+      return
+    }
+    if (pick.type === 'charity') setSelection({ kind: 'charity', cc: pick.cc, group: null, focus: false })
     else setSelection({ kind: 'group', group: { ccs: pick.ccs, lonLat: pick.lonLat }, focus: false })
+    setCamera((c) => ({ key: c.key + 1 }))
   }, [])
 
   const pickFromSearch = useCallback((point: CharityPoint) => {
     setNotice(null)
     setSectors((prev) => (prev.size && !prev.has(point.sector) ? new Set() : prev))
     setSelection({ kind: 'charity', cc: point.cc, group: null, focus: true })
-    mapRef.current?.flyTo(point.lonLat, 15)
+    setCamera((c) => ({ key: c.key + 1, zoom: PLACE_ZOOM }))
   }, [])
 
   const toggleSector = useCallback((name: string) => {
@@ -166,12 +191,23 @@ export function MapPage() {
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [selection, closeSelection])
 
-  // Phones: keep the selected place clear of the header and the bottom sheet.
-  const [selLon, selLat] = selectedLonLat ?? []
+  // Centre the selected place in the part of the map the header and the sheet leave free.
+  const [selLon, selLat] = selected?.lonLat ?? []
+  const centred = useRef(0)
   useEffect(() => {
-    if (isDesktop || selLon === undefined || selLat === undefined || sheetHeight === 0) return
-    mapRef.current?.ensureVisible([selLon, selLat], { top: headerBox.bottom, right: 0, bottom: sheetHeight + LABEL_ROOM, left: 0 })
-  }, [isDesktop, selLon, selLat, sheetHeight, headerBox.bottom])
+    if (selLon === undefined || selLat === undefined) return
+    if (!isDesktop && sheetHeight === 0) return // the sheet hasn't measured itself yet
+    const free: Insets = isDesktop
+      ? { top: 0, right: 0, bottom: 0, left: headerBox.right }
+      : { top: headerBox.bottom, right: 0, bottom: sheetHeight, left: 0 }
+    if (centred.current !== camera.key) {
+      centred.current = camera.key
+      mapRef.current?.focusOn([selLon, selLat], free, camera.zoom)
+    } else if (!isDesktop) {
+      // The header or the sheet changed size: move only if the place is now covered.
+      mapRef.current?.ensureVisible([selLon, selLat], free)
+    }
+  }, [camera, selLon, selLat, isDesktop, sheetHeight, headerBox.right, headerBox.bottom])
 
   const fitPadding = useMemo<Insets>(
     () =>
@@ -181,9 +217,18 @@ export function MapPage() {
     [isDesktop, headerBox.right, headerBox.bottom],
   )
 
+  // Open on the whole country, framed in the part of the map the header leaves free.
+  const framed = useRef(false)
+  useEffect(() => {
+    if (framed.current || headerBox.height === 0) return
+    framed.current = true
+    mapRef.current?.fitPoints(NZ_MAINLAND, false)
+  }, [headerBox.height])
+
   let panel: ReactNode = null
   if (dataset && selection?.kind === 'charity' && selectedPoint) {
-    const { group, focus } = selection
+    const { focus } = selection
+    const group = selection.group ?? neighbours
     panel = (
       <CharityDetails
         key={selectedPoint.cc}
@@ -277,7 +322,7 @@ export function MapPage() {
           colourOf={colourOf}
           inputRef={searchRef}
         />
-        {dataset && (
+        {dataset ? (
           <div className="mt-3">
             <SectorFilter
               sectors={dataset.sectors}
@@ -287,6 +332,12 @@ export function MapPage() {
               onClear={clearSectors}
             />
           </div>
+        ) : (
+          charities.status === 'loading' && (
+            <div className="mt-3">
+              <SectorFilterSkeleton />
+            </div>
+          )
         )}
         <div className="mt-3 text-sm text-mist">{status}</div>
         {notice && (
@@ -308,8 +359,8 @@ export function MapPage() {
         <CharityMap
           ref={mapRef}
           data={features}
-          selectedCc={selectedPoint?.cc ?? null}
-          popup={isDesktop && panel && selectedLonLat ? { lonLat: selectedLonLat, content: panel } : null}
+          selected={selected}
+          popup={isDesktop ? panel : null}
           initialZoom={initialZoom}
           fitPadding={fitPadding}
           onPick={handlePick}

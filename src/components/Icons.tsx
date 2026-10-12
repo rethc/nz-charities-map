@@ -74,7 +74,7 @@ export const LayersIcon = (p: IconProps) => (
   </Svg>
 )
 
-/** The brand mark: a kōwhai ring on harbour ink — the same ring marks a selected place on the map. */
+/** The brand mark: a kōwhai ring on harbour ink. */
 export function BrandMark({ size = 28 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" focusable="false">

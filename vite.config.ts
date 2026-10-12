@@ -6,8 +6,16 @@ import { defineConfig } from 'vite'
 // Netlify sets COMMIT_REF during builds; shown in the browser console so you can check which deploy is live.
 const build = `${(process.env.COMMIT_REF ?? '').slice(0, 7) || 'local'}, built ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`
 
+// Link previews need an absolute image address. Netlify sets URL to the site's main address
+// during builds; without it (local builds) the address stays relative.
+const siteUrl = (process.env.URL ?? '').replace(/\/+$/, '')
+
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    { name: 'site-url', transformIndexHtml: (html) => html.replaceAll('%SITE_URL%', siteUrl) },
+  ],
   define: { APP_BUILD: JSON.stringify(build) },
   // MapLibre 6 starts its worker with `new Worker(url, { type: 'module' })`, so emit
   // the worker (imported via `?worker&url` in src/lib/maplibre.ts) as an ES module.

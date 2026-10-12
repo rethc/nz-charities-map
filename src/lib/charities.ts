@@ -13,6 +13,8 @@ export interface CharityPoint {
   sector: string
   place: string | null
   lonLat: LonLat
+  /** Shared by every charity at exactly this location (the index of the first one there). */
+  spot: number
   nameKey: string
   ccKey: string
   searchKey: string
@@ -31,6 +33,12 @@ export interface MapFeatureProps {
   cc: string
   name: string
   colour: string
+  spot: number
+  /** On the first charity at a shared address: how many are there, and who (comma-separated CC numbers). */
+  stack?: number
+  ccs?: string
+  /** On the others at that address: they count towards clusters but aren't drawn. */
+  stacked?: true
 }
 export type CharityFeatureCollection = FeatureCollection<Point, MapFeatureProps>
 
@@ -68,13 +76,17 @@ export async function loadCharities(signal?: AbortSignal): Promise<CharityDatase
 
 export function buildDataset(data: CharitiesInViewCompact, source: CharityDataset['source']): CharityDataset {
   const counts = new Map<string, number>()
+  const spots = new Map<string, number>()
   const points = data.rows.map(([cc, name, sector, lon, lat, place], index): CharityPoint => {
     const sectorName = cleanSectorName(sector)
     counts.set(sectorName, (counts.get(sectorName) ?? 0) + 1)
     const nameKey = fold(name)
     const ccKey = cc.toLowerCase()
+    const spotKey = `${lon},${lat}`
+    const spot = spots.get(spotKey) ?? index
+    spots.set(spotKey, spot)
     return {
-      index, cc, name, place,
+      index, cc, name, place, spot,
       sector: sectorName,
       lonLat: [lon, lat],
       nameKey, ccKey,
@@ -92,18 +104,32 @@ export function buildDataset(data: CharitiesInViewCompact, source: CharityDatase
   }
 }
 
+/**
+ * One feature per charity. Where several share an address, the first carries the count and
+ * the member list so the map can draw a single numbered badge instead of a pile of dots.
+ */
 export function toFeatureCollection(
   points: Iterable<CharityPoint>,
   colourBySector: Map<string, string>,
 ): CharityFeatureCollection {
   const features: Array<Feature<Point, MapFeatureProps>> = []
+  const firstAt = new Map<number, MapFeatureProps>()
   for (const p of points) {
-    features.push({
-      type: 'Feature',
-      id: p.index,
-      geometry: { type: 'Point', coordinates: p.lonLat },
-      properties: { cc: p.cc, name: p.name, colour: colourBySector.get(p.sector) ?? OTHER_COLOUR },
-    })
+    const properties: MapFeatureProps = {
+      cc: p.cc,
+      name: p.name,
+      colour: colourBySector.get(p.sector) ?? OTHER_COLOUR,
+      spot: p.spot,
+    }
+    const first = firstAt.get(p.spot)
+    if (first) {
+      first.stack = (first.stack ?? 1) + 1
+      first.ccs = `${first.ccs ?? first.cc},${p.cc}`
+      properties.stacked = true
+    } else {
+      firstAt.set(p.spot, properties)
+    }
+    features.push({ type: 'Feature', id: p.index, geometry: { type: 'Point', coordinates: p.lonLat }, properties })
   }
   return { type: 'FeatureCollection', features }
 }
