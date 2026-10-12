@@ -18,8 +18,8 @@ export interface PartOf {
 
 const textLink = 'font-semibold underline decoration-ink/30 underline-offset-4 hover:decoration-ink'
 const button =
-  'inline-flex grow items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-[0.9375rem] font-semibold'
-const buttonQuiet = `${button} border border-line hover:border-ink`
+  'inline-flex grow items-center justify-center gap-2 rounded-xl px-3.5 py-2.5 text-[0.9375rem] font-semibold transition duration-150 active:scale-[0.98] motion-reduce:active:scale-100'
+const buttonQuiet = `${button} border border-line hover:border-ink/40 hover:bg-paper`
 const fieldName = 'text-sm text-muted'
 
 function useFocusOnMount<T extends HTMLElement>(enabled: boolean | undefined) {
@@ -50,7 +50,7 @@ function CloseButton({ onClose, label }: { onClose: () => void; label: string })
       type="button"
       onClick={onClose}
       aria-label={label}
-      className="-mt-1 -mr-2 grid size-9 flex-none place-items-center rounded-full text-muted hover:bg-paper hover:text-ink"
+      className="-mt-1 -mr-2 grid size-9 flex-none place-items-center rounded-full text-muted transition-colors hover:bg-paper hover:text-ink"
     >
       <CloseIcon />
     </button>
@@ -129,7 +129,7 @@ export function CharityDetails({
             id={titleId}
             ref={headingRef}
             tabIndex={-1}
-            className="text-xl leading-snug font-bold text-balance break-words focus:outline-none focus-visible:outline-2"
+            className="text-xl leading-snug font-bold tracking-tight text-balance break-words focus:outline-none focus-visible:outline-2"
           >
             {point.name}
           </h2>

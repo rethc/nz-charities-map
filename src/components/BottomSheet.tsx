@@ -1,37 +1,60 @@
-import { useEffect, useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import {
+  useEffect,
+  useRef,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react'
 
-interface BottomSheetProps {
+export interface PanelSize {
+  width: number
+  height: number
+}
+
+interface PanelProps {
   labelledBy: string
-  onClose: () => void
-  /** Reports the sheet's height so the map can keep the selected place above it. */
-  onHeightChange?: (height: number) => void
+  /** Reports the panel's size so the map can keep the selected place clear of it (zero once it has gone). */
+  onSizeChange?: (size: PanelSize) => void
   children: ReactNode
+}
+
+function useReportSize(ref: RefObject<HTMLElement | null>, onSizeChange: PanelProps['onSizeChange']) {
+  useEffect(() => {
+    const el = ref.current
+    if (!el || !onSizeChange) return
+    let last = { width: -1, height: -1 }
+    const observer = new ResizeObserver(() => {
+      const next = { width: Math.round(el.offsetWidth), height: Math.round(el.offsetHeight) }
+      if (next.width === last.width && next.height === last.height) return
+      last = next
+      onSizeChange(next)
+    })
+    observer.observe(el)
+    return () => {
+      observer.disconnect()
+      onSizeChange({ width: 0, height: 0 })
+    }
+  }, [ref, onSizeChange])
 }
 
 const DISMISS_DISTANCE = 96 // px dragged down
 const DISMISS_VELOCITY = 0.6 // px per ms (a quick flick)
 
 /**
- * Non-modal sheet for phones: the map stays usable above it. Drag the handle down to close.
- * Its height is capped so the selected place stays in view between it and the header; longer
- * content scrolls inside.
+ * Non-modal sheet along the bottom: the map stays usable above it. Drag the handle down to close.
+ * `clearTop` is the height that must stay free above it (the header, and room for the selected
+ * place), so the sheet never grows over them; longer content scrolls inside.
  */
-export function BottomSheet({ labelledBy, onClose, onHeightChange, children }: BottomSheetProps) {
+export function BottomSheet({
+  labelledBy,
+  onClose,
+  onSizeChange,
+  clearTop = 0,
+  children,
+}: PanelProps & { onClose: () => void; clearTop?: number }) {
   const sheetRef = useRef<HTMLElement>(null)
   const drag = useRef<{ startY: number; lastY: number; lastT: number; velocity: number } | null>(null)
-
-  useEffect(() => {
-    const el = sheetRef.current
-    if (!el || !onHeightChange) return
-    const observer = new ResizeObserver(([entry]) => {
-      if (entry) onHeightChange(Math.round(entry.borderBoxSize[0]?.blockSize ?? el.offsetHeight))
-    })
-    observer.observe(el)
-    return () => {
-      observer.disconnect()
-      onHeightChange(0)
-    }
-  }, [onHeightChange])
+  useReportSize(sheetRef, onSizeChange)
 
   function setOffset(px: number, animate: boolean) {
     const el = sheetRef.current
@@ -71,7 +94,9 @@ export function BottomSheet({ labelledBy, onClose, onHeightChange, children }: B
       role="dialog"
       aria-modal="false"
       aria-labelledby={labelledBy}
-      className="animate-sheet-in fixed inset-x-0 bottom-0 z-30 flex max-h-[58dvh] flex-col rounded-t-2xl bg-white shadow-float"
+      style={{ maxHeight: `max(11rem, min(58dvh, calc(100dvh - ${clearTop}px)))` }}
+      // Full width on a phone; on anything wider it sits centred rather than stretching edge to edge.
+      className="animate-sheet-in fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-xl flex-col rounded-t-3xl bg-white shadow-float ring-1 ring-ink/5"
     >
       <div
         onPointerDown={onPointerDown}
@@ -81,11 +106,32 @@ export function BottomSheet({ labelledBy, onClose, onHeightChange, children }: B
         className="flex h-6 flex-none cursor-grab touch-none items-center justify-center active:cursor-grabbing"
         aria-hidden="true"
       >
-        <span className="h-1.5 w-10 rounded-full bg-line" />
+        <span className="h-1 w-9 rounded-full bg-ink/15" />
       </div>
       <div className="-mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom)]">
         {children}
       </div>
+    </section>
+  )
+}
+
+/**
+ * For screens too short for a sheet under the header (a phone on its side): the details take
+ * the left edge, over the header, and the map keeps the rest.
+ */
+export function SidePanel({ labelledBy, onSizeChange, children }: PanelProps) {
+  const panelRef = useRef<HTMLElement>(null)
+  useReportSize(panelRef, onSizeChange)
+
+  return (
+    <section
+      ref={panelRef}
+      role="dialog"
+      aria-modal="false"
+      aria-labelledby={labelledBy}
+      className="animate-side-in fixed inset-y-0 left-0 z-30 w-[min(24rem,52vw)] overflow-y-auto overscroll-contain bg-white pl-[env(safe-area-inset-left)] shadow-float ring-1 ring-ink/5"
+    >
+      {children}
     </section>
   )
 }

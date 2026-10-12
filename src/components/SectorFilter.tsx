@@ -11,7 +11,7 @@ interface SectorFilterProps {
   onClear: () => void
 }
 
-/** Sectors with their own colour; on wider screens the long tail sits behind "More". */
+/** Sectors with their own colour; where the pills are always on show the long tail sits behind "More". */
 const PRIMARY = 8
 
 const pill =
@@ -28,7 +28,7 @@ export function SectorFilterSkeleton() {
       {[6.5, 13.5, 17, 14, 8.5, 14.5, 10.5, 11.5, 15].map((rem, i) => (
         <span
           key={rem}
-          className={`h-8 animate-pulse rounded-full bg-ink-soft motion-reduce:animate-none ${i ? 'hidden md:block' : ''}`}
+          className={`h-8 animate-pulse rounded-full bg-ink-soft motion-reduce:animate-none ${i ? 'hidden pills:block' : ''}`}
           style={{ width: `${rem}rem` }}
         />
       ))}
@@ -37,9 +37,9 @@ export function SectorFilterSkeleton() {
 }
 
 /**
- * Wider screens: the pills are always on show and double as the map legend.
- * Phones: one button opens the pills below it, wrapped over several lines, so no
- * pill is ever cut off at the screen edge and the map keeps its space.
+ * Roomy screens (`pills:`): the pills are always on show and double as the map legend.
+ * Phones and short windows: one button opens the pills below it, wrapped over several
+ * lines, so no pill is ever cut off at the screen edge and the map keeps its space.
  */
 export function SectorFilter({ sectors, counts, selected, onToggle, onClear }: SectorFilterProps) {
   const listId = useId()
@@ -57,7 +57,7 @@ export function SectorFilter({ sectors, counts, selected, onToggle, onClear }: S
         aria-expanded={open}
         aria-controls={listId}
         onClick={() => setOpen((v) => !v)}
-        className={`${pill} ${chosen.length ? pillOn : pillOff} max-w-full md:hidden`}
+        className={`${pill} ${chosen.length ? pillOn : pillOff} max-w-full pills:hidden`}
       >
         {chosen.slice(0, 3).map((s) => (
           <span key={s.name} className="sector-dot" style={{ backgroundColor: s.colour }} aria-hidden="true" />
@@ -71,8 +71,8 @@ export function SectorFilter({ sectors, counts, selected, onToggle, onClear }: S
         id={listId}
         role="group"
         aria-label="Filter by sector"
-        // Phones: the list scrolls, fading out at the bottom edge to show there is more.
-        className={`${open ? 'flex' : 'hidden'} mt-3 max-h-[45dvh] flex-wrap gap-2 overflow-y-auto overscroll-contain pb-3 max-md:[mask-image:linear-gradient(to_bottom,#000_calc(100%-1.25rem),transparent)] md:mt-0 md:flex md:max-h-none md:overflow-visible md:pb-0`}
+        // Behind the button, the list scrolls and fades out at the bottom edge to show there is more.
+        className={`${open ? 'flex' : 'hidden'} mt-3 max-h-[min(45dvh,calc(100dvh-16rem))] flex-wrap gap-2 overflow-y-auto overscroll-contain pb-3 [mask-image:linear-gradient(to_bottom,#000_calc(100%-1.25rem),transparent)] pills:mt-0 pills:flex pills:max-h-none pills:overflow-visible pills:pb-0 pills:[mask-image:none]`}
       >
         <button
           type="button"
@@ -86,7 +86,7 @@ export function SectorFilter({ sectors, counts, selected, onToggle, onClear }: S
         {sectors.map((s, i) => {
           const on = selected.has(s.name)
           const count = counts.get(s.name) ?? 0
-          // Wider screens tuck the long tail away; phones show everything once the list is open.
+          // With the pills always on show the long tail is tucked away; behind the button, everything is listed.
           const tucked = i >= PRIMARY && !expanded && !on
           return (
             <button
@@ -94,7 +94,7 @@ export function SectorFilter({ sectors, counts, selected, onToggle, onClear }: S
               type="button"
               aria-pressed={on}
               onClick={() => onToggle(s.name)}
-              className={`${pill} ${on ? pillOn : pillOff} ${count === 0 && !on ? 'opacity-60' : ''} ${tucked ? 'md:hidden' : ''}`}
+              className={`${pill} ${on ? pillOn : pillOff} ${count === 0 && !on ? 'opacity-60' : ''} ${tucked ? 'pills:hidden' : ''}`}
             >
               <span className="sector-dot" style={{ backgroundColor: s.colour }} aria-hidden="true" />
               {s.name}
@@ -108,12 +108,12 @@ export function SectorFilter({ sectors, counts, selected, onToggle, onClear }: S
             type="button"
             aria-expanded={expanded}
             onClick={() => setExpanded((v) => !v)}
-            className={`${textButton} hidden md:inline-flex`}
+            className={`${textButton} hidden pills:inline-flex`}
           >
             {expanded ? 'Fewer sectors' : `${hiddenCount} more sectors`}
           </button>
         )}
-        <button type="button" onClick={() => setOpen(false)} className={`${textButton} md:hidden`}>
+        <button type="button" onClick={() => setOpen(false)} className={`${textButton} pills:hidden`}>
           Done
         </button>
       </div>

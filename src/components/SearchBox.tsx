@@ -83,7 +83,7 @@ export function SearchBox({
       <label htmlFor={id} className="sr-only">
         Search charities by name or registration number
       </label>
-      <SearchIcon className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted" />
+      <SearchIcon className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted" />
       <input
         id={id}
         ref={inputRef}
@@ -99,7 +99,7 @@ export function SearchBox({
         autoCorrect="off"
         spellCheck={false}
         disabled={disabled}
-        placeholder="Search by name or CC number"
+        placeholder="Name or CC number"
         value={value}
         onChange={(e) => {
           onChange(e.target.value)
@@ -109,7 +109,7 @@ export function SearchBox({
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
         onKeyDown={onKeyDown}
-        className="h-11 w-full rounded-xl bg-white pr-11 pl-10 text-base text-ink placeholder:text-muted disabled:opacity-70"
+        className="h-12 w-full rounded-2xl bg-white pr-11 pl-11 text-base text-ink shadow-[inset_0_0_0_1px_rgb(18_51_58/0.06)] placeholder:text-muted disabled:opacity-70"
       />
       {value ? (
         <button
@@ -130,7 +130,7 @@ export function SearchBox({
       )}
 
       <div
-        className={`absolute inset-x-0 top-full z-20 mt-2 overflow-hidden rounded-xl bg-white text-ink shadow-float ${showList ? '' : 'hidden'}`}
+        className={`absolute inset-x-0 top-full z-20 mt-2 overflow-hidden rounded-2xl bg-white text-ink shadow-float ring-1 ring-ink/5 ${showList ? '' : 'hidden'}`}
       >
         <div id={listId} role="listbox" aria-label="Matching charities" className="max-h-[min(22rem,50dvh)] overflow-y-auto">
           {options.map((p, i) => (

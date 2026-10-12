@@ -22,8 +22,25 @@
   --color-alert: #b3261e;
   --color-alert-tint: #fbeae9;
 
-  --shadow-float: 0 1px 2px rgb(18 51 58 / 0.16), 0 10px 28px -8px rgb(18 51 58 / 0.32);
+  --shadow-float: 0 1px 2px rgb(18 51 58 / 0.1), 0 4px 10px -2px rgb(18 51 58 / 0.12), 0 18px 40px -12px rgb(18 51 58 / 0.3);
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+/*
+ * Layout breakpoints (the same queries live in src/hooks/useMediaQuery.ts for JavaScript).
+ *   card:  the header floats as a card at the top left: any wide screen, and a phone on its side.
+ *   pills: wide and tall enough to keep every sector pill on show; otherwise one button opens them.
+ */
+@custom-variant card {
+  @media (min-width: 48rem), (min-width: 37.5rem) and (orientation: landscape) {
+    @slot;
+  }
+}
+
+@custom-variant pills {
+  @media (min-width: 48rem) and (min-height: 31.3125rem) {
+    @slot;
+  }
 }
 
 @layer base {
@@ -81,6 +98,12 @@
   }
 }
 
+@keyframes side-in {
+  from {
+    transform: translateX(-100%);
+  }
+}
+
 @keyframes toast-in {
   from {
     opacity: 0;
@@ -111,6 +134,10 @@
   animation: sheet-in 220ms var(--ease-out-quart);
 }
 
+.animate-side-in {
+  animation: side-in 220ms var(--ease-out-quart);
+}
+
 .animate-toast-in {
   animation: toast-in 180ms var(--ease-out-quart);
 }
@@ -134,24 +161,72 @@
   outline-offset: -3px;
 }
 
+/* Map controls: soft floating buttons with the app's own line icons. */
 .maplibregl-map .maplibregl-ctrl-group:not(:empty) {
-  border-radius: 0.625rem;
-  box-shadow: var(--shadow-float);
+  overflow: hidden;
+  border-radius: 0.875rem;
+  box-shadow: var(--shadow-float), 0 0 0 1px rgb(18 51 58 / 0.05);
 }
 
 .maplibregl-map .maplibregl-ctrl-group button {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
+  transition: background-color 120ms;
+}
+
+.maplibregl-map .maplibregl-ctrl-group button + button {
+  border-top-color: var(--color-line);
+}
+
+.maplibregl-map .maplibregl-ctrl-group button:not(:disabled):hover {
+  background-color: var(--color-paper);
+}
+
+.maplibregl-map .maplibregl-ctrl button .maplibregl-ctrl-icon {
+  background-size: 20px;
+}
+
+.maplibregl-map .maplibregl-ctrl button.maplibregl-ctrl-zoom-in .maplibregl-ctrl-icon {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2312333a' stroke-width='2.25' stroke-linecap='round'%3E%3Cpath d='M12 5v14M5 12h14'/%3E%3C/svg%3E");
+}
+
+.maplibregl-map .maplibregl-ctrl button.maplibregl-ctrl-zoom-out .maplibregl-ctrl-icon {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2312333a' stroke-width='2.25' stroke-linecap='round'%3E%3Cpath d='M5 12h14'/%3E%3C/svg%3E");
+}
+
+/* "Find my location": ink at rest, blue while it is following you, red if the browser refused. */
+.maplibregl-map .maplibregl-ctrl button.maplibregl-ctrl-geolocate .maplibregl-ctrl-icon {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2312333a' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='6.5'/%3E%3Cpath d='M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3'/%3E%3Ccircle cx='12' cy='12' r='2.25' fill='%2312333a' stroke='none'/%3E%3C/svg%3E");
+}
+
+.maplibregl-map .maplibregl-ctrl button.maplibregl-ctrl-geolocate.maplibregl-ctrl-geolocate-active .maplibregl-ctrl-icon,
+.maplibregl-map .maplibregl-ctrl button.maplibregl-ctrl-geolocate.maplibregl-ctrl-geolocate-background .maplibregl-ctrl-icon,
+.maplibregl-map .maplibregl-ctrl button.maplibregl-ctrl-geolocate.maplibregl-ctrl-geolocate-waiting .maplibregl-ctrl-icon {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230072b2' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='6.5'/%3E%3Cpath d='M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3'/%3E%3Ccircle cx='12' cy='12' r='2.25' fill='%230072b2' stroke='none'/%3E%3C/svg%3E");
+}
+
+.maplibregl-map .maplibregl-ctrl button.maplibregl-ctrl-geolocate.maplibregl-ctrl-geolocate-active-error .maplibregl-ctrl-icon,
+.maplibregl-map .maplibregl-ctrl button.maplibregl-ctrl-geolocate.maplibregl-ctrl-geolocate-background-error .maplibregl-ctrl-icon {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23b3261e' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='6.5'/%3E%3Cpath d='M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3'/%3E%3Ccircle cx='12' cy='12' r='2.25' fill='%23b3261e' stroke='none'/%3E%3C/svg%3E");
+}
+
+.maplibregl-map .maplibregl-ctrl button.maplibregl-ctrl-geolocate:disabled .maplibregl-ctrl-icon {
+  opacity: 0.35;
 }
 
 .maplibregl-map .maplibregl-ctrl button:focus-visible {
   box-shadow: none;
   outline: 2px solid var(--color-ink);
-  outline-offset: 1px;
+  outline-offset: -2px;
 }
 
 .maplibregl-map .maplibregl-ctrl-attrib {
   font-size: 0.6875rem;
+}
+
+.maplibregl-map .maplibregl-ctrl-attrib.maplibregl-compact {
+  border-radius: 0.875rem;
+  box-shadow: 0 1px 3px rgb(18 51 58 / 0.12);
 }
 
 .maplibregl-map .maplibregl-ctrl-attrib a {
@@ -205,8 +280,8 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 0;
-  border-radius: 0.875rem;
-  box-shadow: var(--shadow-float);
+  border-radius: 1.125rem;
+  box-shadow: var(--shadow-float), 0 0 0 1px rgb(18 51 58 / 0.05);
   font: inherit;
   color: var(--color-ink);
 }

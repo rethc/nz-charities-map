@@ -12,4 +12,14 @@ export function useMediaQuery(query: string): boolean {
   return useSyncExternalStore(subscribe, () => window.matchMedia(query).matches, () => false)
 }
 
-export const DESKTOP_QUERY = '(min-width: 768px)'
+/*
+ * Layout breakpoints. The first matches the `card:` variant in index.css, and POPUP_QUERY's
+ * height matches where `pills:` ends.
+ */
+/** The header floats as a card at the top left, leaving map beside it. */
+export const CARD_QUERY = '(min-width: 768px), (min-width: 600px) and (orientation: landscape)'
+/** Wide and tall enough for the details to open as a popup above the pin, clear of the header card. */
+export const POPUP_QUERY = '(min-width: 896px) and (min-height: 501px)'
+/** Too short for a sheet under the header (a phone on its side): the details take the left edge. */
+export const SHORT_QUERY = '(max-height: 500px)'
+export const PORTRAIT_QUERY = '(orientation: portrait)'

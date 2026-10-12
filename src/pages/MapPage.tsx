@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router'
-import { BottomSheet } from '../components/BottomSheet'
+import { BottomSheet, SidePanel, type PanelSize } from '../components/BottomSheet'
 import { CharityDetails, CharityGroup, type PartOf } from '../components/CharityDetails'
 import {
   CharityMap,
@@ -15,7 +15,7 @@ import { SectorFilter, SectorFilterSkeleton } from '../components/SectorFilter'
 import { useCharities } from '../hooks/useCharities'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { useElementBox } from '../hooks/useElementBox'
-import { DESKTOP_QUERY, useMediaQuery } from '../hooks/useMediaQuery'
+import { CARD_QUERY, POPUP_QUERY, PORTRAIT_QUERY, SHORT_QUERY, useMediaQuery } from '../hooks/useMediaQuery'
 import { toFeatureCollection, type CharityPoint } from '../lib/charities'
 import { formatCount, isTypingTarget } from '../lib/dom'
 import { DEFAULT_VIEW, MOBILE_ZOOM, NZ_MAINLAND, type LonLat } from '../lib/geo'
@@ -34,6 +34,9 @@ type Selection =
 /** How far in a search result or shared link is shown. */
 const PLACE_ZOOM = 15
 
+/** Kept free between the header and a bottom sheet, so the selected place's pin always shows. */
+const ROOM_FOR_PIN = 112
+
 /** "Zoom to these" is offered when the matches are few enough to be worth framing. */
 const MAX_FIT = 5000
 
@@ -49,7 +52,12 @@ function selectionFromUrl(params: URLSearchParams): Selection | null {
 export function MapPage() {
   const charities = useCharities()
   const dataset = charities.data
-  const isDesktop = useMediaQuery(DESKTOP_QUERY)
+  const cardHeader = useMediaQuery(CARD_QUERY)
+  const portrait = useMediaQuery(PORTRAIT_QUERY)
+  const roomForPopup = useMediaQuery(POPUP_QUERY)
+  const short = useMediaQuery(SHORT_QUERY)
+  /** Where the details go: a popup above the pin, a panel down the left edge, or a sheet along the bottom. */
+  const layout = roomForPopup ? 'popup' : short ? 'side' : 'sheet'
   const [searchParams, setSearchParams] = useSearchParams()
 
   // The URL seeds the initial state; after that, state is mirrored back into it (replace, not push).
@@ -61,8 +69,9 @@ export function MapPage() {
     selection ? { key: 1, zoom: PLACE_ZOOM } : { key: 0 },
   )
   const [notice, setNotice] = useState<string | null>(null)
-  const [sheetHeight, setSheetHeight] = useState(0)
-  const [initialZoom] = useState(() => (window.matchMedia(DESKTOP_QUERY).matches ? DEFAULT_VIEW.zoom : MOBILE_ZOOM))
+  // The sheet or side panel, once it has measured itself.
+  const [panelSize, setPanelSize] = useState<PanelSize>({ width: 0, height: 0 })
+  const [initialZoom] = useState(() => (window.matchMedia(CARD_QUERY).matches ? DEFAULT_VIEW.zoom : MOBILE_ZOOM))
   const [headerRef, headerBox] = useElementBox<HTMLElement>()
   const mapRef = useRef<CharityMapHandle>(null)
   const searchRef = useRef<HTMLInputElement>(null)
@@ -193,34 +202,41 @@ export function MapPage() {
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [selection, closeSelection])
 
-  // Centre the selected place in the part of the map the header and the sheet leave free.
+  const framed = useRef(false)
+  // The part of the map that the header and the details leave free: where the selected place belongs.
+  const freeArea = useMemo<Insets | null>(() => {
+    if (layout === 'popup') return { top: 0, right: 0, bottom: 0, left: headerBox.right }
+    if (panelSize.height === 0) return null // the sheet or side panel hasn't measured itself yet
+    if (layout === 'side') return { top: 0, right: 0, bottom: 0, left: panelSize.width }
+    return cardHeader
+      ? { top: 0, right: 0, bottom: panelSize.height, left: headerBox.right }
+      : { top: headerBox.bottom, right: 0, bottom: panelSize.height, left: 0 }
+  }, [layout, cardHeader, panelSize, headerBox.right, headerBox.bottom])
+
+  // Centre the selected place there.
   const [selLon, selLat] = selected?.lonLat ?? []
   const centred = useRef(0)
   useEffect(() => {
-    if (selLon === undefined || selLat === undefined) return
-    if (!isDesktop && sheetHeight === 0) return // the sheet hasn't measured itself yet
-    const free: Insets = isDesktop
-      ? { top: 0, right: 0, bottom: 0, left: headerBox.right }
-      : { top: headerBox.bottom, right: 0, bottom: sheetHeight, left: 0 }
+    if (selLon === undefined || selLat === undefined || !freeArea) return
     if (centred.current !== camera.key) {
       centred.current = camera.key
-      mapRef.current?.focusOn([selLon, selLat], free, camera.zoom)
-    } else if (!isDesktop) {
-      // The header or the sheet changed size: move only if the place is now covered.
-      mapRef.current?.ensureVisible([selLon, selLat], free)
+      framed.current = true // too late to open on the whole country
+      mapRef.current?.focusOn([selLon, selLat], freeArea, camera.zoom)
+    } else if (layout !== 'popup') {
+      // The header or the panel changed size: move only if the place is now covered.
+      mapRef.current?.ensureVisible([selLon, selLat], freeArea)
     }
-  }, [camera, selLon, selLat, isDesktop, sheetHeight, headerBox.right, headerBox.bottom])
+  }, [camera, selLon, selLat, freeArea, layout])
 
-  const fitPadding = useMemo<Insets>(
-    () =>
-      isDesktop
-        ? { top: 48, right: 48, bottom: 48, left: headerBox.right + 24 }
-        : { top: headerBox.bottom + 16, right: 32, bottom: 40, left: 32 },
-    [isDesktop, headerBox.right, headerBox.bottom],
-  )
+  const fitPadding = useMemo<Insets>(() => {
+    if (!cardHeader) return { top: headerBox.bottom + 16, right: 32, bottom: 40, left: 32 }
+    // Beside the header card; on an upright tablet there is more room below it.
+    return portrait
+      ? { top: headerBox.bottom + 24, right: 48, bottom: 48, left: 48 }
+      : { top: 48, right: 48, bottom: 48, left: headerBox.right + 24 }
+  }, [cardHeader, portrait, headerBox.right, headerBox.bottom])
 
   // Open on the whole country, framed in the part of the map the header leaves free.
-  const framed = useRef(false)
   useEffect(() => {
     if (framed.current || headerBox.height === 0) return
     framed.current = true
@@ -319,11 +335,12 @@ export function MapPage() {
     <div className="relative h-full overflow-hidden bg-[#e9efed]">
       <header
         ref={headerRef}
-        className="on-ink absolute inset-x-0 top-0 z-20 rounded-b-2xl bg-ink px-4 pt-[max(env(safe-area-inset-top),0.875rem)] pb-3.5 text-paper shadow-float md:inset-x-auto md:top-4 md:left-4 md:w-[27rem] md:rounded-2xl md:p-4"
+        // The side panel takes the header's place while it is open.
+        className={`on-ink absolute inset-x-0 top-0 z-20 rounded-b-3xl bg-ink px-4 pt-[max(env(safe-area-inset-top),0.875rem)] pb-3.5 text-paper shadow-float ring-1 ring-white/10 card:inset-x-auto card:top-4 card:left-[max(1rem,env(safe-area-inset-left))] card:w-[min(27rem,56vw)] card:rounded-3xl card:p-4 ${layout === 'side' && panel ? 'hidden' : ''}`}
       >
         <div className="mb-3 flex items-center gap-2.5">
           <BrandMark size={26} />
-          <h1 className="text-[1.0625rem] leading-tight font-bold">NZ Charities Map</h1>
+          <h1 className="text-[1.0625rem] leading-tight font-bold tracking-tight">NZ Charities Map</h1>
         </div>
         <SearchBox
           value={query}
@@ -372,19 +389,26 @@ export function MapPage() {
           ref={mapRef}
           data={features}
           selected={selected}
-          popup={isDesktop ? panel : null}
+          popup={layout === 'popup' ? panel : null}
           initialZoom={initialZoom}
           fitPadding={fitPadding}
           onPick={handlePick}
         />
-        {!isDesktop && panel && (
+        {panel && layout === 'sheet' && (
           <BottomSheet
             labelledBy={titleId}
             onClose={() => closeSelection(selection?.focus ?? false)}
-            onHeightChange={setSheetHeight}
+            onSizeChange={setPanelSize}
+            // Under a header bar the pin needs the gap; beside a header card it only has to stay off the card.
+            clearTop={headerBox.bottom + (cardHeader ? 16 : ROOM_FOR_PIN)}
           >
             {panel}
           </BottomSheet>
+        )}
+        {panel && layout === 'side' && (
+          <SidePanel labelledBy={titleId} onSizeChange={setPanelSize}>
+            {panel}
+          </SidePanel>
         )}
       </main>
     </div>
