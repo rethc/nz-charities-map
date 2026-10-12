@@ -1,6 +1,6 @@
 # NZ Charities Map
 
-An interactive map of every registered charity in Aotearoa New Zealand that has a street address,
+An interactive map of every registered charity and group in Aotearoa New Zealand that has a street address,
 built from the Charities Services register and kept up to date nightly. Visitors can search by name
 or registration number (CC12345), filter by sector, and open any charity's register profile.
 Admins get a triage screen for the addresses the geocoder couldn't place with confidence.

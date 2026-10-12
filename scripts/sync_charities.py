@@ -10,7 +10,7 @@
 Sync registered New Zealand charities into Supabase and geocode their street addresses.
 
 Pipeline
-  1. Fetch changed organisations from the Charities Services OData API (keyset-paged).
+  1. Fetch changed organisations and groups from the Charities Services OData API (keyset-paged).
   2. Clean each street address (strip levels / PO boxes / RD numbers / care-of lines).
   3. Upsert into `public.charities`. A database trigger re-queues a record for
      geocoding whenever its published address changes (geocode_status -> NULL).
@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import itertools
 import json
 import logging
 import math
@@ -80,6 +81,26 @@ ODATA_FIELDS = (
     "MainSectorId",
     "ModifiedOn",
 )
+# Registered groups live in their own entity, with three of the columns named differently.
+ODATA_GROUP_FIELDS = (
+    "GroupId",
+    "RegistrationNumber",
+    "name",
+    "RegistrationStatus",
+    "StreetAddressLine1",
+    "StreetAddressLine2",
+    "StreetAddressSuburb",
+    "StreetAddressTownCity",
+    "StreetAddressPostcode",
+    "StreetAddressCountry",
+    "MainSectorId",
+    "ModifiedOn",
+)
+GROUP_FIELD_ALIASES = {
+    "RegistrationNumber": "CharityRegistrationNumber",
+    "name": "Name",
+    "StreetAddressTownCity": "StreetAddressCity",
+}
 ODATA_PAGE_SIZE = 1000  # the service caps un-flagged queries at 1000 rows
 
 LINZ_WFS = "https://data.linz.govt.nz/services;key={key}/wfs"
@@ -608,27 +629,28 @@ def odata_datetime_literal(ts: datetime) -> str:
     return f"datetime'{ts.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%S')}'"
 
 
-def fetch_organisations(
-    client: httpx.Client, *, since: datetime | None, registered_only: bool, limit: int | None = None
+def fetch_keyset(
+    client: httpx.Client, entity: str, key: str, fields: tuple[str, ...], *,
+    since: datetime | None, registered_only: bool, limit: int | None = None,
 ) -> Iterator[dict[str, Any]]:
-    """Keyset pagination on OrganisationId: robust to the service's 1000-row cap and to
-    records changing between pages (no $skip drift)."""
+    """Keyset pagination on the entity's integer key: robust to the service's 1000-row cap
+    and to records changing between pages (no $skip drift)."""
     last_id, yielded = 0, 0
     while True:
-        clauses = [f"OrganisationId gt {last_id}"]
+        clauses = [f"{key} gt {last_id}"]
         if registered_only:
             clauses.append("RegistrationStatus eq 'Registered'")
         if since:
             clauses.append(f"ModifiedOn gt {odata_datetime_literal(since)}")
         params = {
             "$filter": " and ".join(clauses),
-            "$orderby": "OrganisationId",
+            "$orderby": key,
             "$top": str(ODATA_PAGE_SIZE),
-            "$select": ",".join(ODATA_FIELDS),
+            "$select": ",".join(fields),
             "$format": "json",
         }
         page = odata_results(request_json(
-            client, f"{ODATA_BASE}/Organisations", params=params,
+            client, f"{ODATA_BASE}/{entity}", params=params,
             headers={"Accept": "application/json"}, attempts=4, what="Charities OData",
         ))
         if not page:
@@ -638,8 +660,29 @@ def fetch_organisations(
             yielded += 1
             if limit and yielded >= limit:
                 return
-        last_id = max(int(r["OrganisationId"]) for r in page)
-        log.info("  …fetched %s organisations (last OrganisationId %s)", yielded, last_id)
+        last_id = max(int(r[key]) for r in page)
+        log.info("  …fetched %s %s (last %s %s)", yielded, entity.lower(), key, last_id)
+
+
+def fetch_organisations(
+    client: httpx.Client, *, since: datetime | None, registered_only: bool, limit: int | None = None
+) -> Iterator[dict[str, Any]]:
+    return fetch_keyset(client, "Organisations", "OrganisationId", ODATA_FIELDS,
+                        since=since, registered_only=registered_only, limit=limit)
+
+
+def fetch_groups(
+    client: httpx.Client, *, since: datetime | None, registered_only: bool, limit: int | None = None
+) -> Iterator[dict[str, Any]]:
+    """Registered groups (a parent charity and its members under one registration), yielded
+    with the Organisations column names so the rest of the pipeline treats a group like any
+    charity. A group has its own CC number; its members are already in Organisations.
+
+    A couple of groups carry a suffixed number (CC11026-0). to_source_charity() drops those:
+    the charities table only accepts plain CC numbers."""
+    for record in fetch_keyset(client, "Groups", "GroupId", ODATA_GROUP_FIELDS,
+                               since=since, registered_only=registered_only, limit=limit):
+        yield {GROUP_FIELD_ALIASES.get(k, k): v for k, v in record.items()}
 
 
 def fetch_sector_names(client: httpx.Client) -> dict[int, str]:
@@ -1360,9 +1403,13 @@ def main(argv: list[str] | None = None) -> int:
         sectors = {} if args.source_csv else fetch_sector_names(http)
         if sectors:
             log.info("Loaded %s sector names", len(sectors))
+        registered_only = args.mode == "full"
         raw_records: Iterable[dict[str, Any]] = (
             read_csv_source(args.source_csv) if args.source_csv
-            else fetch_organisations(http, since=since, registered_only=args.mode == "full", limit=args.limit)
+            else itertools.chain(
+                fetch_organisations(http, since=since, registered_only=registered_only, limit=args.limit),
+                fetch_groups(http, since=since, registered_only=registered_only, limit=args.limit),
+            )
         )
         registered: dict[str, SourceCharity] = {}
         deregistered: set[str] = set()

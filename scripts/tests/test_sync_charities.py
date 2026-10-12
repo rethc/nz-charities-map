@@ -147,6 +147,36 @@ def test_fetch_organisations_uses_keyset_paging():
     assert "RegistrationStatus eq 'Registered'" in seen_filters[0]
 
 
+def test_fetch_groups_reads_the_groups_entity_as_charities():
+    # a row copied from the live register's Groups entity
+    group = {
+        "__metadata": {"uri": "x"}, "GroupId": 123, "RegistrationNumber": "CC22833",
+        "name": "Auckland Kindergarten Association Group", "RegistrationStatus": "Registered",
+        "StreetAddressLine1": "80 Greys Avenue", "StreetAddressLine2": None, "StreetAddressSuburb": " ",
+        "StreetAddressTownCity": "Auckland", "StreetAddressPostcode": "1010", "StreetAddressCountry": None,
+        "MainSectorId": 7, "ModifiedOn": "2024-01-01T00:00:00Z",
+    }
+    pages = {0: [group, {**group, "GroupId": 150, "RegistrationNumber": "CC11026-0"}], 150: []}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/Groups"
+        assert request.url.params["$orderby"] == "GroupId"
+        assert "StreetAddressTownCity" in request.url.params["$select"]
+        last = int(request.url.params["$filter"].split("GroupId gt ")[1].split()[0])
+        return httpx.Response(200, json={"d": {"results": pages[last]}})
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    records = list(sc.fetch_groups(client, since=datetime(2026, 9, 1, tzinfo=UTC), registered_only=False))
+    charity, suffixed = (sc.to_source_charity(r, {7: "Education / training / research"}) for r in records)
+
+    assert (charity.cc_number, charity.name, charity.registered) == (
+        "CC22833", "Auckland Kindergarten Association Group", True)
+    assert charity.sector == "Education / training / research"
+    assert (charity.address.street, charity.address.city) == ("80 Greys Avenue", "Auckland")
+    assert charity.modified_on == datetime(2024, 1, 1, tzinfo=UTC)
+    assert suffixed is None  # CC11026-0 can't be stored: the table only takes plain CC numbers
+
+
 def test_request_json_retries_then_succeeds():
     calls = {"n": 0}
 
