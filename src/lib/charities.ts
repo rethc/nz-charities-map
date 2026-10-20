@@ -2,6 +2,7 @@ import type { Feature, FeatureCollection, Point } from 'geojson'
 import type { CharitiesInViewCompact, CharityDetail } from './database.types'
 import { env, snapshotUrl } from './env'
 import { NZ_EXTENT, type LonLat } from './geo'
+import { yieldToMain } from './dom'
 import { rpcGet, selectCharity } from './publicApi'
 import { fold } from './search'
 import { buildSectors, cleanSectorName, OTHER_COLOUR, type SectorInfo } from './sectors'
@@ -73,7 +74,7 @@ async function fetchFromRpc(signal?: AbortSignal): Promise<CharitiesInViewCompac
 export async function loadCharities(signal?: AbortSignal): Promise<CharityDataset> {
   if (env.dataSource === 'snapshot') {
     try {
-      return buildDataset(await fetchSnapshot(signal), 'snapshot')
+      return await buildDataset(await fetchSnapshot(signal), 'snapshot')
     } catch (err) {
       if (signal?.aborted) throw err
       console.warn('Snapshot unavailable — falling back to the live RPC.', err)
@@ -82,30 +83,40 @@ export async function loadCharities(signal?: AbortSignal): Promise<CharityDatase
   return buildDataset(await fetchFromRpc(signal), 'rpc')
 }
 
-export function buildDataset(data: CharitiesInViewCompact, source: CharityDataset['source']): CharityDataset {
+/** Rows prepared between breaks, so building the dataset never holds up the page for long. */
+const ROWS_PER_CHUNK = 4000
+
+export async function buildDataset(data: CharitiesInViewCompact, source: CharityDataset['source']): Promise<CharityDataset> {
   const counts = new Map<string, number>()
   const spots = new Map<string, number>()
   const groupNames = new Map(Object.entries(data.groups ?? {}))
   const members = new Map<string, CharityPoint[]>()
-  const points = data.rows.map(([cc, name, sector, lon, lat, place, groupCc], index): CharityPoint => {
-    const sectorName = cleanSectorName(sector)
-    counts.set(sectorName, (counts.get(sectorName) ?? 0) + 1)
-    const nameKey = fold(name)
-    const ccKey = cc.toLowerCase()
-    const spotKey = `${lon},${lat}`
-    const spot = spots.get(spotKey) ?? index
-    spots.set(spotKey, spot)
-    return {
-      index, cc, name, place, spot,
-      isGroup: groupNames.has(cc),
-      // only a group that is still registered is worth pointing to
-      partOf: groupCc && groupNames.has(groupCc) ? groupCc : null,
-      sector: sectorName,
-      lonLat: [lon, lat],
-      nameKey, ccKey,
-      searchKey: `${nameKey} ${ccKey} ${place ? fold(place) : ''}`,
+  const points: CharityPoint[] = []
+  for (let start = 0; start < data.rows.length; start += ROWS_PER_CHUNK) {
+    // A break first, too: reading the downloaded JSON was a long job of its own.
+    await yieldToMain()
+    const end = Math.min(start + ROWS_PER_CHUNK, data.rows.length)
+    for (let index = start; index < end; index++) {
+      const [cc, name, sector, lon, lat, place, groupCc] = data.rows[index]!
+      const sectorName = cleanSectorName(sector)
+      counts.set(sectorName, (counts.get(sectorName) ?? 0) + 1)
+      const nameKey = fold(name)
+      const ccKey = cc.toLowerCase()
+      const spotKey = `${lon},${lat}`
+      const spot = spots.get(spotKey) ?? index
+      spots.set(spotKey, spot)
+      points.push({
+        index, cc, name, place, spot,
+        isGroup: groupNames.has(cc),
+        // only a group that is still registered is worth pointing to
+        partOf: groupCc && groupNames.has(groupCc) ? groupCc : null,
+        sector: sectorName,
+        lonLat: [lon, lat],
+        nameKey, ccKey,
+        searchKey: `${nameKey} ${ccKey} ${place ? fold(place) : ''}`,
+      })
     }
-  })
+  }
   for (const p of points) {
     if (!p.partOf) continue
     const list = members.get(p.partOf)

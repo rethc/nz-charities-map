@@ -2,6 +2,8 @@ import type { CharityPoint } from './charities'
 
 /** Lower-case and strip macrons/diacritics so "Ōtautahi" matches "otautahi". */
 export function fold(text: string): string {
+  // Most names are plain ASCII and only need lower-casing; the Unicode clean-up is much slower.
+  if (!/[^ -~]/.test(text)) return text.toLowerCase()
   return text.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase()
 }
 

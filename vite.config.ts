@@ -17,6 +17,8 @@ export default defineConfig({
     { name: 'site-url', transformIndexHtml: (html) => html.replaceAll('%SITE_URL%', siteUrl) },
   ],
   define: { APP_BUILD: JSON.stringify(build) },
+  // The source is public on GitHub anyway; maps make errors on the live site readable.
+  build: { sourcemap: true },
   // MapLibre 6 starts its worker with `new Worker(url, { type: 'module' })`, so emit
   // the worker (imported via `?worker&url` in src/lib/maplibre.ts) as an ES module.
   worker: { format: 'es' },

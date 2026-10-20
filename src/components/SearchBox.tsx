@@ -1,4 +1,5 @@
 import { useId, useState, type KeyboardEvent, type Ref } from 'react'
+import { formatCount } from '../lib/dom'
 import type { CharityPoint } from '../lib/charities'
 import { CloseIcon, SearchIcon } from './Icons'
 
@@ -167,7 +168,7 @@ export function SearchBox({
         )}
         {totalMatches > options.length && (
           <p className="border-t border-line px-4 py-2 text-sm text-muted">
-            {totalMatches.toLocaleString('en-NZ')} matches, all shown on the map
+            {formatCount(totalMatches)} matches, all shown on the map
           </p>
         )}
       </div>

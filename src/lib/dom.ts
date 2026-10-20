@@ -4,7 +4,14 @@ export function isTypingTarget(target: EventTarget | null): boolean {
   return target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
 }
 
-export const formatCount = (n: number) => n.toLocaleString('en-NZ')
+/** 25415 → "25,415". Written out because the browser's number formatting is slow to start up. */
+export const formatCount = (n: number) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+
+/** Lets the browser paint and respond to input before a long job carries on. */
+export function yieldToMain(): Promise<void> {
+  const scheduler = (globalThis as { scheduler?: { yield?: () => Promise<void> } }).scheduler
+  return scheduler?.yield ? scheduler.yield() : new Promise((resolve) => setTimeout(resolve, 0))
+}
 
 /** The longest a download waits for the first paint, in case the browser never reports it. */
 const MAX_PAINT_WAIT = 1000

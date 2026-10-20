@@ -1,4 +1,5 @@
 import { useId, useState } from 'react'
+import { formatCount } from '../lib/dom'
 import type { SectorInfo } from '../lib/sectors'
 import { ChevronDownIcon } from './Icons'
 
@@ -98,7 +99,7 @@ export function SectorFilter({ sectors, counts, selected, onToggle, onClear }: S
             >
               <span className="sector-dot" style={{ backgroundColor: s.colour }} aria-hidden="true" />
               {s.name}
-              <span className="tabular-nums opacity-80">{count.toLocaleString('en-NZ')}</span>
+              <span className="tabular-nums opacity-80">{formatCount(count)}</span>
             </button>
           )
         })}
