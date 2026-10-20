@@ -61,7 +61,19 @@ const FALLBACK_STYLE: StyleSpecification = {
   version: 8,
   glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
   sources: {},
-  layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#e9efed' } }],
+  layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#f8f4f0' } }],
+}
+
+/**
+ * The basemap's own shop, bus-stop and park icons look like charity pins, so the public map
+ * leaves them out. Roads, place names and colours stay as they are.
+ */
+export function hideBasemapPlaces(map: MapLibreMap) {
+  map.on('style.load', () => {
+    for (const layer of map.getStyle().layers) {
+      if ('source-layer' in layer && layer['source-layer'] === 'poi') map.removeLayer(layer.id)
+    }
+  })
 }
 
 /** If the basemap style can't be fetched, swap in a plain background so the charity layers still load. */

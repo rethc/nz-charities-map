@@ -338,7 +338,7 @@ export function MapPage() {
   }
 
   return (
-    <div className="relative h-full overflow-hidden bg-[#e9efed]">
+    <div className="relative h-full overflow-hidden bg-[#f8f4f0]">
       <header
         ref={headerRef}
         // The side panel takes the header's place while it is open.

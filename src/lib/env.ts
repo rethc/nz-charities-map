@@ -5,8 +5,8 @@ export const env = {
   supabaseUrl,
   supabaseKey,
   dataSource: import.meta.env.VITE_DATA_SOURCE === 'snapshot' ? 'snapshot' : 'rpc',
-  basemapStyle: import.meta.env.VITE_BASEMAP_STYLE?.trim() || 'https://tiles.openfreemap.org/styles/positron',
-  /** More detail (house numbers, buildings) for placing pins in triage. */
+  /** OpenFreeMap Liberty: colourful, with house numbers and buildings close up. */
+  basemapStyle: import.meta.env.VITE_BASEMAP_STYLE?.trim() || 'https://tiles.openfreemap.org/styles/liberty',
   triageStyle: import.meta.env.VITE_BASEMAP_STYLE?.trim() || 'https://tiles.openfreemap.org/styles/liberty',
   linzBasemapsKey: import.meta.env.VITE_LINZ_BASEMAPS_KEY?.trim() || null,
 } as const

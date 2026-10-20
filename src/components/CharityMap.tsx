@@ -17,6 +17,7 @@ import type { CharityFeatureCollection } from '../lib/charities'
 import { boundsOf, DEFAULT_VIEW, prefersReducedMotion, type LonLat } from '../lib/geo'
 import {
   basemapStyle,
+  hideBasemapPlaces,
   LABEL_FONT,
   LABEL_FONT_BOLD,
   MAP_ATTRIBUTION,
@@ -321,6 +322,7 @@ export function CharityMap({ data, selected, popup, initialZoom, fitPadding, onP
       'bottom-right',
     )
     withStyleFallback(map)
+    hideBasemapPlaces(map)
     map.once('load', () => {
       addCharityLayers(map, latest.current.selectedSpot)
       setLoaded(true)
