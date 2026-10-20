@@ -16,8 +16,9 @@
   [headers.values]
     # Tiles, styles and fonts: OpenFreeMap. Data and auth: Supabase. Aerial photos: LINZ.
     # Photon is only called directly when the /api/geocode function is unavailable.
+    # Cloudflare Web Analytics: the script loads from static.cloudflareinsights.com and reports to cloudflareinsights.com.
     # Using a custom Supabase domain or a different basemap? Add its host here.
-    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tiles.openfreemap.org https://basemaps.linz.govt.nz; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://tiles.openfreemap.org https://basemaps.linz.govt.nz https://photon.komoot.io; worker-src 'self' blob:; child-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tiles.openfreemap.org https://basemaps.linz.govt.nz; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://tiles.openfreemap.org https://basemaps.linz.govt.nz https://photon.komoot.io https://cloudflareinsights.com; worker-src 'self' blob:; child-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
     Referrer-Policy = "strict-origin-when-cross-origin"
     X-Content-Type-Options = "nosniff"
     Permissions-Policy = "geolocation=(self), camera=(), microphone=(), payment=()"
