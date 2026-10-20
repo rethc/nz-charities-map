@@ -1,0 +1,4 @@
+# Search engines may index the map. The admin screens and the API aren't pages for them.
+User-agent: *
+Disallow: /admin
+Disallow: /api/

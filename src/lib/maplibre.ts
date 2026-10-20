@@ -4,8 +4,14 @@
  * worker explicitly. `?worker&url` bundles it (with its imports) as a same-origin file.
  */
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { setWorkerUrl, type Map as MapLibreMap, type StyleSpecification } from 'maplibre-gl'
+import {
+  setWorkerUrl,
+  type Map as MapLibreMap,
+  type RequestTransformFunction,
+  type StyleSpecification,
+} from 'maplibre-gl'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
+import { whenFirstPainted } from './dom'
 import { env } from './env'
 
 setWorkerUrl(workerUrl)
@@ -23,6 +29,29 @@ export const DATA_ATTRIBUTION =
 
 export const basemapStyle = env.basemapStyle
 export const triageStyle = env.triageStyle
+
+/** OpenFreeMap's credit, character for character as its tiles state it (so MapLibre doesn't add it twice). */
+const OPENFREEMAP_ATTRIBUTION =
+  '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> ' +
+  '<a href="https://www.openmaptiles.org/" target="_blank">&copy; OpenMapTiles</a> ' +
+  'Data from <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
+
+/**
+ * Credits for the public map. With the default OpenFreeMap basemap its credit is listed up front,
+ * so the full line shows as soon as the map does instead of growing once the tiles' description
+ * arrives. Lighthouse treats this line as the page's main content, so that late change was
+ * scored as a slow page.
+ */
+export const MAP_ATTRIBUTION: string | string[] = basemapStyle.startsWith('https://tiles.openfreemap.org/')
+  ? [OPENFREEMAP_ATTRIBUTION, DATA_ATTRIBUTION]
+  : DATA_ATTRIBUTION
+
+/**
+ * For MapLibre's `transformRequest`: holds back the basemap style, and so every tile, sprite and
+ * font it leads to, until the page has first painted (see `whenFirstPainted`).
+ */
+export const styleAfterFirstPaint: RequestTransformFunction = (url, type) =>
+  String(type) === 'Style' ? whenFirstPainted().then(() => ({ url })) : undefined
 
 /** Glyph stacks for our own labels — both exist on OpenFreeMap's glyph server. */
 export const LABEL_FONT = ['Noto Sans Regular']

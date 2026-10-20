@@ -15,7 +15,14 @@ import { useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNo
 import { createPortal } from 'react-dom'
 import type { CharityFeatureCollection } from '../lib/charities'
 import { boundsOf, DEFAULT_VIEW, prefersReducedMotion, type LonLat } from '../lib/geo'
-import { basemapStyle, DATA_ATTRIBUTION, LABEL_FONT, LABEL_FONT_BOLD, withStyleFallback } from '../lib/maplibre'
+import {
+  basemapStyle,
+  LABEL_FONT,
+  LABEL_FONT_BOLD,
+  MAP_ATTRIBUTION,
+  styleAfterFirstPaint,
+  withStyleFallback,
+} from '../lib/maplibre'
 
 export type MapPick =
   | { type: 'charity'; cc: string; lonLat: LonLat }
@@ -289,6 +296,7 @@ export function CharityMap({ data, selected, popup, initialZoom, fitPadding, onP
     const map = new MapLibreMap({
       container: containerRef.current!,
       style: basemapStyle,
+      transformRequest: styleAfterFirstPaint,
       center: DEFAULT_VIEW.center,
       zoom: initialZoom,
       minZoom: 2.5,
@@ -303,7 +311,7 @@ export function CharityMap({ data, selected, popup, initialZoom, fitPadding, onP
     map.keyboard.disableRotation()
     map.getCanvas().setAttribute('aria-label', 'Map of registered charities. Search above to find one by name.')
 
-    map.addControl(new AttributionControl({ compact: true, customAttribution: DATA_ATTRIBUTION }), 'bottom-right')
+    map.addControl(new AttributionControl({ compact: true, customAttribution: MAP_ATTRIBUTION }), 'bottom-right')
     map.addControl(new NavigationControl({ showCompass: false }), 'bottom-right')
     map.addControl(
       new GeolocateControl({

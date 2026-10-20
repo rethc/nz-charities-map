@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { loadCharities, type CharityDataset } from '../lib/charities'
+import { whenFirstPainted } from '../lib/dom'
 
 export type CharitiesState =
   | { status: 'loading'; data: null; error: null }
@@ -16,13 +17,16 @@ export function useCharities() {
   useEffect(() => {
     if (!loading) return
     const controller = new AbortController()
-    loadCharities(controller.signal).then(
-      (data) => setState({ status: 'ready', data, error: null }),
-      (err: unknown) => {
-        if (controller.signal.aborted) return
-        setState({ status: 'error', data: null, error: err instanceof Error ? err.message : String(err) })
-      },
-    )
+    // The large download starts once the header and map are on screen.
+    whenFirstPainted()
+      .then(() => loadCharities(controller.signal))
+      .then(
+        (data) => setState({ status: 'ready', data, error: null }),
+        (err: unknown) => {
+          if (controller.signal.aborted) return
+          setState({ status: 'error', data: null, error: err instanceof Error ? err.message : String(err) })
+        },
+      )
     return () => controller.abort()
   }, [loading])
 
