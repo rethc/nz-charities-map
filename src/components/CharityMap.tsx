@@ -97,7 +97,10 @@ const FOCUS_MARGIN = 24
 const EMPTY: CharityFeatureCollection = { type: 'FeatureCollection', features: [] }
 
 const isCluster: ExpressionSpecification = ['has', 'point_count']
-/** Several charities at one address: drawn once, as a numbered badge. */
+/**
+ * Several charities at one address: drawn once, as a numbered badge. It is white with an ink
+ * ring, so it doesn't read as a cluster: ink means "zoom in for more", white means "all here".
+ */
 const isStack: ExpressionSpecification = ['has', 'stack']
 const isHovered: ExpressionSpecification = ['boolean', ['feature-state', 'hover'], false]
 const clusterRadius: ExpressionSpecification = ['step', ['get', 'point_count'], 14, 25, 17, 100, 21, 1000, 26, 5000, 31]
@@ -186,6 +189,7 @@ function addCharityLayers(map: MapLibreMap, selectedSpot: number) {
   })
 
   // Single charities: a sector-coloured dot with a white rim, lifted off the basemap by a soft shadow.
+  // Badges for a shared address turn that round: white, with an ink rim and count.
   map.addLayer({
     id: LAYER.shadows,
     type: 'circle',
@@ -205,10 +209,11 @@ function addCharityLayers(map: MapLibreMap, selectedSpot: number) {
     source: SOURCE,
     filter: filter.points,
     paint: {
-      'circle-color': ['case', isStack, INK, ['get', 'colour']],
+      'circle-color': ['case', isStack, '#ffffff', ['get', 'colour']],
       'circle-radius': pointRadius(),
-      'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 5, 1.25, 14, 2],
-      'circle-stroke-color': '#ffffff',
+      // a badge keeps its full ring when zoomed out, so it stays readable on the pale basemap
+      'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 5, ['case', isStack, 2, 1.25], 14, 2],
+      'circle-stroke-color': ['case', isStack, INK, '#ffffff'],
     },
   })
   map.addLayer({
@@ -243,7 +248,7 @@ function addCharityLayers(map: MapLibreMap, selectedSpot: number) {
       'text-allow-overlap': true,
       'text-padding': 7,
     },
-    paint: { 'text-color': '#ffffff' },
+    paint: { 'text-color': INK },
   })
 }
 
