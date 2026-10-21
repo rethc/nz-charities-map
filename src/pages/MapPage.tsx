@@ -148,9 +148,24 @@ export function MapPage() {
   const pinPoint = selectedPoint ?? groupPoint
   const pinColour = pinPoint ? colourOf(pinPoint.sector) : OTHER_COLOUR
   const pinCount = selection?.kind === 'group' ? selection.group.ccs.length : 1
+  // A group picked off the map can span addresses a metre or two apart: the pin stands for all of
+  // them (also while one of its members is open), so none of their badges peek out from under it.
+  const pinGroup = selection?.group ?? null
+  const pinSpots = useMemo(() => {
+    if (!pinPoint) return null
+    const spots = new Set([pinPoint.spot])
+    for (const cc of pinGroup?.ccs ?? []) {
+      const p = dataset?.byCc.get(cc)
+      if (p) spots.add(p.spot)
+    }
+    return [...spots]
+  }, [pinPoint, pinGroup, dataset])
   const selected = useMemo<MapSelection | null>(
-    () => (pinPoint ? { lonLat: pinPoint.lonLat, spot: pinPoint.spot, colour: pinColour, count: pinCount } : null),
-    [pinPoint, pinColour, pinCount],
+    () =>
+      pinPoint && pinSpots
+        ? { lonLat: pinPoint.lonLat, spots: pinSpots, colour: pinColour, count: pinCount }
+        : null,
+    [pinPoint, pinSpots, pinColour, pinCount],
   )
 
   const closeSelection = useCallback((returnFocus: boolean) => {

@@ -33,8 +33,11 @@ export type MapPick =
 /** The selected place, marked with a pin: one charity, or several that share an address. */
 export interface MapSelection {
   lonLat: LonLat
-  /** `CharityPoint.spot` of the place — its dots give way to the pin. */
-  spot: number
+  /**
+   * `CharityPoint.spot` of every address the pin stands for — their dots and badges give way to
+   * it. Usually one, but a group picked off the map can span addresses a metre or two apart.
+   */
+  spots: readonly number[]
   colour: string
   count: number
 }
@@ -87,6 +90,13 @@ const INK = '#12333a'
 const CLUSTER_MAX_ZOOM = 14
 /** Clusters up to this size fetch their members so a click can fit them exactly. */
 const LEAF_LIMIT = 500
+/**
+ * A click on a cluster zooms in at least this many levels. A big cluster splits one level in,
+ * so stepping in just that far took nine clicks to get from the whole country to a city centre.
+ */
+const CLUSTER_STEP = 2
+/** Clicking a cluster never zooms in further than this. */
+const CLUSTER_ZOOM_CAP = 16
 /** Members closer together than this (≈20 m) share an address — list them instead of zooming. */
 const COLOCATED_DEG = 0.0002
 /** The selected-place pin, in CSS pixels; its tip sits on the place. */
@@ -97,10 +107,7 @@ const FOCUS_MARGIN = 24
 const EMPTY: CharityFeatureCollection = { type: 'FeatureCollection', features: [] }
 
 const isCluster: ExpressionSpecification = ['has', 'point_count']
-/**
- * Several charities at one address: drawn once, as a numbered badge. It is white with an ink
- * ring, so it doesn't read as a cluster: ink means "zoom in for more", white means "all here".
- */
+/** Several charities at one address: drawn once, as a numbered badge. */
 const isStack: ExpressionSpecification = ['has', 'stack']
 const isHovered: ExpressionSpecification = ['boolean', ['feature-state', 'hover'], false]
 const clusterRadius: ExpressionSpecification = ['step', ['get', 'point_count'], 14, 25, 17, 100, 21, 1000, 26, 5000, 31]
@@ -118,11 +125,15 @@ const pointRadius = (extra = 0): ExpressionSpecification => {
 }
 
 type Filter = NonNullable<Parameters<MapLibreMap['setFilter']>[1]>
-const notSelected = (spot: number): ExpressionSpecification => ['!=', ['get', 'spot'], spot]
-const filters = (spot: number): Record<'points' | 'stackCount' | 'labels', Filter> => ({
-  points: ['all', ['!', isCluster], ['!', ['has', 'stacked']], notSelected(spot)],
-  stackCount: ['all', ['!', isCluster], isStack, notSelected(spot)],
-  labels: ['all', ['!', isCluster], ['!', isStack], ['!', ['has', 'stacked']], notSelected(spot)],
+const NO_SPOTS: readonly number[] = []
+const notSelected = (spots: readonly number[]): ExpressionSpecification => [
+  '!',
+  ['in', ['get', 'spot'], ['literal', [...spots]]],
+]
+const filters = (spots: readonly number[]): Record<'points' | 'stackCount' | 'labels', Filter> => ({
+  points: ['all', ['!', isCluster], ['!', ['has', 'stacked']], notSelected(spots)],
+  stackCount: ['all', ['!', isCluster], isStack, notSelected(spots)],
+  labels: ['all', ['!', isCluster], ['!', isStack], ['!', ['has', 'stacked']], notSelected(spots)],
 })
 
 /**
@@ -139,7 +150,7 @@ const pointCoords = (f: Feature): LonLat => {
   return [lon!, lat!]
 }
 
-function addCharityLayers(map: MapLibreMap, selectedSpot: number) {
+function addCharityLayers(map: MapLibreMap, selectedSpots: readonly number[]) {
   map.addSource(SOURCE, {
     type: 'geojson',
     data: EMPTY,
@@ -147,7 +158,7 @@ function addCharityLayers(map: MapLibreMap, selectedSpot: number) {
     clusterRadius: 50,
     clusterMaxZoom: CLUSTER_MAX_ZOOM,
   })
-  const filter = filters(selectedSpot)
+  const filter = filters(selectedSpots)
 
   // Clusters: an ink bubble in a soft ring, which reads as "more inside".
   map.addLayer({
@@ -189,7 +200,6 @@ function addCharityLayers(map: MapLibreMap, selectedSpot: number) {
   })
 
   // Single charities: a sector-coloured dot with a white rim, lifted off the basemap by a soft shadow.
-  // Badges for a shared address turn that round: white, with an ink rim and count.
   map.addLayer({
     id: LAYER.shadows,
     type: 'circle',
@@ -209,11 +219,10 @@ function addCharityLayers(map: MapLibreMap, selectedSpot: number) {
     source: SOURCE,
     filter: filter.points,
     paint: {
-      'circle-color': ['case', isStack, '#ffffff', ['get', 'colour']],
+      'circle-color': ['case', isStack, INK, ['get', 'colour']],
       'circle-radius': pointRadius(),
-      // a badge keeps its full ring when zoomed out, so it stays readable on the pale basemap
-      'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 5, ['case', isStack, 2, 1.25], 14, 2],
-      'circle-stroke-color': ['case', isStack, INK, '#ffffff'],
+      'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 5, 1.25, 14, 2],
+      'circle-stroke-color': '#ffffff',
     },
   })
   map.addLayer({
@@ -248,7 +257,7 @@ function addCharityLayers(map: MapLibreMap, selectedSpot: number) {
       'text-allow-overlap': true,
       'text-padding': 7,
     },
-    paint: { 'text-color': INK },
+    paint: { 'text-color': '#ffffff' },
   })
 }
 
@@ -289,12 +298,12 @@ export function CharityMap({ data, selected, popup, initialZoom, fitPadding, onP
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const [loaded, setLoaded] = useState(false)
-  const selectedSpot = selected?.spot ?? -1
+  const selectedSpots = selected?.spots ?? NO_SPOTS
 
   // Latest props for the long-lived MapLibre event handlers.
-  const latest = useRef({ onPick, fitPadding, selectedSpot })
+  const latest = useRef({ onPick, fitPadding, selectedSpots })
   useEffect(() => {
-    latest.current = { onPick, fitPadding, selectedSpot }
+    latest.current = { onPick, fitPadding, selectedSpots }
   })
 
   // Create the map once.
@@ -329,7 +338,7 @@ export function CharityMap({ data, selected, popup, initialZoom, fitPadding, onP
     withStyleFallback(map)
     hideBasemapPlaces(map)
     map.once('load', () => {
-      addCharityLayers(map, latest.current.selectedSpot)
+      addCharityLayers(map, latest.current.selectedSpots)
       setLoaded(true)
     })
 
@@ -349,16 +358,16 @@ export function CharityMap({ data, selected, popup, initialZoom, fitPadding, onP
     void mapRef.current?.getSource<GeoJSONSource>(SOURCE)?.setData(data ?? EMPTY)
   }, [loaded, data])
 
-  // The selected place is shown by the pin, so its own dot, badge and label step aside.
+  // The selected place is shown by the pin, so its own dots, badges and labels step aside.
   useEffect(() => {
     const map = mapRef.current
     if (!loaded || !map) return
-    const filter = filters(selectedSpot)
+    const filter = filters(selectedSpots)
     map.setFilter(LAYER.shadows, filter.points)
     map.setFilter(LAYER.points, filter.points)
     map.setFilter(LAYER.stackCount, filter.stackCount)
     map.setFilter(LAYER.labels, filter.labels)
-  }, [loaded, selectedSpot])
+  }, [loaded, selectedSpots])
 
   // Clicks and hover feedback.
   useEffect(() => {
@@ -387,14 +396,15 @@ export function CharityMap({ data, selected, popup, initialZoom, fitPadding, onP
           }
           // Fit the members when that actually splits the cluster; otherwise step in.
           const padding = latest.current.fitPadding
-          const camera = map!.cameraForBounds(bounds, { padding, maxZoom: 16 })
+          const camera = map!.cameraForBounds(bounds, { padding, maxZoom: CLUSTER_ZOOM_CAP })
           if (camera?.zoom !== undefined && camera.zoom >= expansionZoom) {
-            map!.fitBounds(bounds, { padding, maxZoom: 16, duration: duration() })
+            map!.fitBounds(bounds, { padding, maxZoom: CLUSTER_ZOOM_CAP, duration: duration() })
             return
           }
         }
       }
-      map!.easeTo({ center: pointCoords(feature), zoom: expansionZoom, duration: duration() })
+      const zoom = Math.min(Math.max(expansionZoom, map!.getZoom() + CLUSTER_STEP), CLUSTER_ZOOM_CAP)
+      map!.easeTo({ center: pointCoords(feature), zoom, duration: duration() })
     }
 
     function onClick(e: MapMouseEvent) {
