@@ -18,7 +18,6 @@ import { boundsOf, DEFAULT_VIEW, prefersReducedMotion, type LonLat } from '../li
 import {
   basemapStyle,
   hideBasemapPlaces,
-  LABEL_FONT,
   LABEL_FONT_BOLD,
   MAP_ATTRIBUTION,
   styleAfterFirstPaint,
@@ -233,15 +232,15 @@ function addCharityLayers(map: MapLibreMap, selectedSpots: readonly number[]) {
     filter: filter.labels,
     layout: {
       'text-field': ['get', 'name'],
-      'text-font': LABEL_FONT,
-      'text-size': 12,
+      'text-font': LABEL_FONT_BOLD,
+      'text-size': 13,
       'text-max-width': 9,
       'text-line-height': 1.15,
       'text-variable-anchor': ['top', 'bottom', 'left', 'right'],
       'text-radial-offset': 1.05,
       'text-justify': 'auto',
     },
-    paint: { 'text-color': '#000000', 'text-halo-color': '#ffffff', 'text-halo-width': 1.5 },
+    paint: { 'text-color': '#000000', 'text-halo-color': '#ffffff', 'text-halo-width': 2 },
   })
 
   // Topmost, so it is placed first: the count always shows and names keep clear of the badge.
