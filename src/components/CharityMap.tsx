@@ -241,7 +241,7 @@ function addCharityLayers(map: MapLibreMap, selectedSpots: readonly number[]) {
       'text-radial-offset': 1.05,
       'text-justify': 'auto',
     },
-    paint: { 'text-color': INK, 'text-halo-color': '#ffffff', 'text-halo-width': 1.5 },
+    paint: { 'text-color': '#000000', 'text-halo-color': '#ffffff', 'text-halo-width': 1.5 },
   })
 
   // Topmost, so it is placed first: the count always shows and names keep clear of the badge.
