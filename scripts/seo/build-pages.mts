@@ -16,7 +16,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadEnv } from 'vite'
 import { loadSourceData } from './fetch.mts'
-import { buildSite } from './model.mts'
+import { buildSite, type Town } from './model.mts'
 import { browsePage, charityPage, esc, paths, sectorPage, townPage, townSectorPage, type PageContext } from './render.mts'
 
 const root = fileURLToPath(new URL('../..', import.meta.url))
@@ -75,6 +75,21 @@ function writeSitemaps(siteUrl: string, directory: string[], charities: string[]
   }
 }
 
+/**
+ * Places now listed under a bigger town ("Wellington CBD" under Wellington) send their own page
+ * address on to the town's page, in case it was crawled or shared before they were merged. The
+ * rules go first in dist/_redirects, ahead of its catch-all "not found" rule.
+ */
+function writeTownRedirects(merged: Map<string, Town>) {
+  if (merged.size === 0) return
+  const file = path.join(dist, '_redirects')
+  const rules = [...merged]
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .flatMap(([slug, town]) => [`/in/${slug}    ${paths.town(town)}    301`, `/in/${slug}/*    ${paths.town(town)}    301`])
+  const header = '# Added by scripts/seo/build-pages.mts: places listed under a bigger town.'
+  fs.writeFileSync(file, `${header}\n${rules.join('\n')}\n\n${fs.readFileSync(file, 'utf8')}`)
+}
+
 async function main() {
   if (process.env.SEO_PAGES === 'off') {
     console.log('Static pages: skipped (SEO_PAGES=off).')
@@ -117,7 +132,7 @@ async function main() {
   for (const town of site.towns) {
     writePage(paths.town(town), townPage(ctx, town))
     directory.push(paths.town(town))
-    if (!town.split) continue
+    if (!town.sectorPages) continue
     for (const { sector, charities } of town.sectors) {
       writePage(paths.townSector(town, sector), townSectorPage(ctx, town, sector, charities))
       directory.push(paths.townSector(town, sector))
@@ -130,6 +145,7 @@ async function main() {
     return p
   })
   writeSitemaps(siteUrl, directory, charityPaths)
+  writeTownRedirects(site.mergedTowns)
 
   const fmt = new Intl.NumberFormat('en-NZ').format
   console.log(

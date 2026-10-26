@@ -10,8 +10,11 @@ import type { Charity, SourceData } from './fetch.mts'
 export const MIN_TOWN = 3
 /** A sector needs this many charities for a page of its own. */
 export const MIN_SECTOR = 3
-/** Up to this many charities, a town's page lists them all. Above it, it links to one page per sector. */
-export const LIST_LIMIT = 400
+/**
+ * A town's page lists all its charities. A town with more than this many also gets a page per
+ * sector ("Health charities in Auckland"), a shorter list that matches what people search for.
+ */
+export const SECTOR_PAGES_OVER = 400
 export const NEARBY = 8
 
 export interface Town {
@@ -21,8 +24,8 @@ export interface Town {
   charities: Charity[]
   /** Its charities by sector, biggest sector first. */
   sectors: Array<{ sector: Sector; charities: Charity[] }>
-  /** Too many to list on one page: each sector gets a page of its own. */
-  split: boolean
+  /** A big town: each sector also gets a page of its own. */
+  sectorPages: boolean
 }
 
 export interface Sector {
@@ -47,6 +50,8 @@ export interface Site {
   towns: Town[]
   /** Town page for a charity's place, if that place has one. */
   townOf: Map<string, Town>
+  /** Places listed under a bigger town, by the page address they'd have had ("wellington-cbd"). */
+  mergedTowns: Map<string, Town>
   sectors: Sector[]
   sectorByName: Map<string, Sector>
   groupNames: Map<string, string>
@@ -101,6 +106,32 @@ export function townName(spellings: Map<string, number>): string {
     )
   const name = best?.[0] ?? ''
   return flat(name) ? titleCase(name) : name
+}
+
+/**
+ * The register's names for the middle of a town ("Wellington CBD", "Auckland Central", "Manukau
+ * City") belong to the town named before them, when that town is in the data too. Directions
+ * aren't on the list: Palmerston North and Havelock North are towns of their own.
+ */
+const CENTRE_SUFFIX = / (?:cbd|central|central city|city|city centre|centre)$/
+
+/** Other names for a town: typos, a council's name, suburbs entered as the town. Folded keys. */
+const TOWN_ALIASES: Record<string, string> = {
+  auckalnd: 'auckland',
+  'hutt city': 'lower hutt', // Hutt City Council's area is Lower Hutt
+  'lower huttt': 'lower hutt',
+  'north shore city': 'north shore',
+  'north shore ity': 'north shore',
+  'hamilton east': 'hamilton',
+  'dunedin north': 'dunedin',
+}
+
+/** The town a place is listed under, as a folded key. `known` holds every place's key in the data. */
+export function townKey(placeKey: string, known: ReadonlySet<string>): string {
+  const alias = TOWN_ALIASES[placeKey]
+  if (alias) return alias
+  const base = placeKey.replace(CENTRE_SUFFIX, '')
+  return base !== placeKey && known.has(base) ? base : placeKey
 }
 
 /** Headings read "Health charities in Nelson", so each sector needs a natural plural. */
@@ -218,19 +249,25 @@ export function buildSite({ charities, groupNames, syncedAt }: SourceData): Site
     .sort((a, b) => bySize(a.name, a.charities.length, b.name, b.charities.length))
   const sectorByName = new Map(sectors.map((s) => [s.name, s]))
 
-  // Towns: spellings that fold to the same key are one town.
-  const townLists = new Map<string, { spellings: Map<string, number>; charities: Charity[] }>()
+  // Towns: spellings that fold to the same key are one town, and so are "Wellington CBD" and the like.
+  const known = new Set<string>()
+  for (const c of charities) if (c.place) known.add(foldKey(c.place))
+  const townLists = new Map<string, { spellings: Map<string, number>; charities: Charity[]; others: Set<string> }>()
   for (const c of charities) {
-    const key = c.place ? foldKey(c.place) : ''
-    if (!key) continue
+    const own = c.place ? foldKey(c.place) : ''
+    if (!own) continue
+    const key = townKey(own, known)
     let entry = townLists.get(key)
-    if (!entry) townLists.set(key, (entry = { spellings: new Map(), charities: [] }))
-    entry.spellings.set(c.place!, (entry.spellings.get(c.place!) ?? 0) + 1)
+    if (!entry) townLists.set(key, (entry = { spellings: new Map(), charities: [], others: new Set() }))
+    // The town is named by its own spellings, not "Wellington CBD".
+    if (own === key) entry.spellings.set(c.place!, (entry.spellings.get(c.place!) ?? 0) + 1)
+    else entry.others.add(own)
     entry.charities.push(c)
   }
   const towns: Town[] = []
   const townOf = new Map<string, Town>()
-  for (const [key, { spellings, charities: list }] of townLists) {
+  const mergedTowns = new Map<string, Town>()
+  for (const [key, { spellings, charities: list, others }] of townLists) {
     if (list.length < MIN_TOWN) continue
     list.sort(byName)
     const groups = new Map<Sector, Charity[]>()
@@ -243,15 +280,16 @@ export function buildSite({ charities, groupNames, syncedAt }: SourceData): Site
     const town: Town = {
       key,
       slug: key.replace(/ /g, '-'),
-      name: townName(spellings),
+      name: spellings.size ? townName(spellings) : titleCase(key),
       charities: list,
       sectors: [...groups]
         .map(([sector, cs]) => ({ sector, charities: cs }))
         .sort((a, b) => bySize(a.sector.name, a.charities.length, b.sector.name, b.charities.length)),
-      split: list.length > LIST_LIMIT,
+      sectorPages: list.length > SECTOR_PAGES_OVER,
     }
     towns.push(town)
     for (const c of list) townOf.set(c.cc, town)
+    for (const other of others) mergedTowns.set(other.replace(/ /g, '-'), town)
   }
   towns.sort((a, b) => collator.compare(a.name, b.name))
 
@@ -281,5 +319,18 @@ export function buildSite({ charities, groupNames, syncedAt }: SourceData): Site
   }
   const nearby = findNearby(charities, spotOf, NEARBY)
 
-  return { charities, byCc, towns, townOf, sectors, sectorByName, groupNames, members, sameSpot, nearby, syncedAt }
+  return {
+    charities,
+    byCc,
+    towns,
+    townOf,
+    mergedTowns,
+    sectors,
+    sectorByName,
+    groupNames,
+    members,
+    sameSpot,
+    nearby,
+    syncedAt,
+  }
 }

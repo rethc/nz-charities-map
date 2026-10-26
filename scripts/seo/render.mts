@@ -24,9 +24,12 @@ export const paths = {
   sector: (sector: Sector) => `/sector/${sector.slug}/`,
 }
 
-/** Where a town's charities in one sector are listed: their own page in a big town, a section otherwise. */
+/**
+ * Where to send someone for a town's charities in one sector, from another page: their own page
+ * in a big town, the section of the town's page otherwise.
+ */
 const townSectorHref = (town: Town, sector: Sector) =>
-  town.split ? paths.townSector(town, sector) : `${paths.town(town)}#${sector.slug}`
+  town.sectorPages ? paths.townSector(town, sector) : `${paths.town(town)}#${sector.slug}`
 
 const mapHref = (params: Record<string, string>) => `/?${new URLSearchParams(params)}`
 const registerUrl = (cc: string) => `https://register.charities.govt.nz/Charity/${encodeURIComponent(cc)}`
@@ -174,11 +177,15 @@ function dotItem(site: Site, c: Charity, extra?: string): string {
 }
 
 /**
- * A suburb worth showing beside a name in a town's list: not the town itself, and not a street
- * address that ended up in the suburb field ("110 Customs Street West").
+ * Where in town, beside a name in a town's list: the suburb (not the town itself, and not a street
+ * address that ended up in the suburb field, "110 Customs Street West"), or else the register's
+ * own name for the place when it's part of the town, such as "Wellington CBD".
  */
-const suburbIn = (town: Town, c: Charity) =>
-  c.suburb && foldKey(c.suburb) !== town.key && !/^\d/.test(c.suburb) ? c.suburb : null
+function suburbIn(town: Town, c: Charity): string | null {
+  if (c.suburb && foldKey(c.suburb) !== town.key && !/^\d/.test(c.suburb)) return c.suburb
+  if (c.place && foldKey(c.place).startsWith(`${town.key} `)) return c.place
+  return null
+}
 
 const sectorChip = (sector: Sector, href: string, count: number) =>
   `<li><a href="${esc(href)}">${dot(sector.colour)}${esc(sector.name)}<span class="n">${n(count)}</span></a></li>`
@@ -324,19 +331,20 @@ ${sections.join('\n')}
 
 export function townPage(ctx: PageContext, town: Town): string {
   const total = town.charities.length
+  // The chips jump down this page; in a big town each heading also leads to that sector's own page.
   const chips = town.sectors
-    .map(({ sector, charities }) => sectorChip(sector, townSectorHref(town, sector), charities.length))
+    .map(({ sector, charities }) => sectorChip(sector, `#${sector.slug}`, charities.length))
     .join('')
-  const lists = town.split
-    ? ''
-    : town.sectors
-        .map(
-          ({ sector, charities }) => `<section class="block" id="${sector.slug}" aria-labelledby="h-${sector.slug}">
-<h2 id="h-${sector.slug}">${dot(sector.colour)}${esc(capitalise(sector.plural))} in ${esc(town.name)} <span class="count">${n(charities.length)}</span></h2>
+  const lists = town.sectors
+    .map(({ sector, charities }) => {
+      const heading = esc(`${capitalise(sector.plural)} in ${town.name}`)
+      const title = town.sectorPages ? `<a href="${paths.townSector(town, sector)}">${heading}</a>` : heading
+      return `<section class="block" id="${sector.slug}" aria-labelledby="h-${sector.slug}">
+<h2 id="h-${sector.slug}">${dot(sector.colour)}${title} <span class="count">${n(charities.length)}</span></h2>
 <ul class="list cols">${charities.map((c) => listItem(c, suburbIn(town, c))).join('')}</ul>
-</section>`,
-        )
-        .join('\n')
+</section>`
+    })
+    .join('\n')
   const topSectors = town.sectors
     .slice(0, 3)
     .map((s) => s.sector.name.toLowerCase())
@@ -344,7 +352,7 @@ export function townPage(ctx: PageContext, town: Town): string {
 
   const main = `<header class="head">
 <h1>Charities in ${esc(town.name)}</h1>
-<p class="lead">${n(total)} registered charities in ${esc(town.name)} are on the map. ${town.split ? 'Choose a sector to see them all.' : 'Here they are by sector.'}</p>
+<p class="lead">${n(total)} registered charities in ${esc(town.name)} are on the map. Here they all are, by sector.</p>
 <div class="actions"><a class="btn btn-primary" href="${esc(mapHref({ q: town.name }))}">${PIN}See them on the map</a></div>
 </header>
 <nav aria-label="Sectors in ${esc(town.name)}"><ul class="chips">${chips}</ul></nav>

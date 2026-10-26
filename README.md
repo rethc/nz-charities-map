@@ -28,7 +28,7 @@ The map runs in JavaScript, so search engines and AI crawlers can't read it on t
 as the map and writes plain HTML pages into `dist/`:
 
 * `/charity/CC12345/`: one page per charity, with its purpose, address and nearby charities
-* `/in/nelson/`: one page per town with 3 or more charities; towns with more than 400 get one page per sector (`/in/auckland/health/`)
+* `/in/nelson/`: one page per town with 3 or more charities, listing all of them by sector. "Wellington CBD", "Auckland Central" and the like count as the town itself (see `townKey` in `scripts/seo/model.mts`). Towns with more than 400 also get one page per sector (`/in/auckland/health/`)
 * `/sector/health/` and `/browse/`: the index pages
 * `/sitemap.xml`, plus a `Sitemap:` line added to `robots.txt`
 

@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { toCharity, type Charity, type Row } from '../scripts/seo/fetch.mts'
-import { buildSite, LIST_LIMIT, sectorPlural, slugify, townName } from '../scripts/seo/model.mts'
+import { buildSite, SECTOR_PAGES_OVER, sectorPlural, slugify, townName } from '../scripts/seo/model.mts'
 import { browsePage, charityPage, clip, formatDistance, townPage } from '../scripts/seo/render.mts'
 
 const ctx = { siteUrl: 'https://example.test', analytics: '' }
@@ -87,20 +87,20 @@ test('register rows: only usable points, register-style numbers and web links ge
   assert.equal(toCharity(row({ cc_number: 'CC11026-0' }))!.cc, 'CC11026-0')
 })
 
-test('towns: spellings merge, small places get no page, big towns split by sector', () => {
+test('towns: spellings merge, small places get no page, every town lists all its charities', () => {
   const charities = [
     charity({ place: 'NELSON' }),
     charity({ place: 'Nelson' }),
     charity({ place: 'Nelson' }),
     charity({ place: 'Tiny', city: 'Tiny' }),
     charity({ place: 'Tiny', city: 'Tiny' }),
-    ...Array.from({ length: LIST_LIMIT + 1 }, () => charity({ place: 'Auckland', city: 'Auckland' })),
+    ...Array.from({ length: SECTOR_PAGES_OVER + 1 }, () => charity({ place: 'Auckland', city: 'Auckland' })),
   ]
   const site = siteOf(charities)
   assert.deepEqual(
-    site.towns.map((t) => [t.name, t.charities.length, t.split]),
+    site.towns.map((t) => [t.name, t.charities.length, t.sectorPages]),
     [
-      ['Auckland', LIST_LIMIT + 1, true],
+      ['Auckland', SECTOR_PAGES_OVER + 1, true],
       ['Nelson', 3, false],
     ],
   )
@@ -108,9 +108,49 @@ test('towns: spellings merge, small places get no page, big towns split by secto
   assert.equal(site.townOf.has(charities[3]!.cc), false)
 
   const auckland = townPage(ctx, site.towns[0]!)
-  assert.match(auckland, /href="\/in\/auckland\/health\/"/, 'a big town links to its sector pages')
-  assert.doesNotMatch(auckland, /href="\/charity\//, 'and does not list every charity itself')
-  assert.match(townPage(ctx, site.towns[1]!), /href="\/charity\/CC\d+\/"/)
+  assert.equal(auckland.match(/href="\/charity\/CC\d+\/"/g)?.length, SECTOR_PAGES_OVER + 1, 'a big town lists them all')
+  assert.match(auckland, /href="\/in\/auckland\/health\/"/, 'and links to its sector pages')
+  const nelson = townPage(ctx, site.towns[1]!)
+  assert.equal(nelson.match(/href="\/charity\/CC\d+\/"/g)?.length, 3)
+  assert.doesNotMatch(nelson, /href="\/in\/nelson\/health\/"/, 'a small town has no sector pages')
+})
+
+test('towns: "CBD", "Central" and "City" join the town, but other towns with similar names stay apart', () => {
+  const at = (place: string, count = 1) => Array.from({ length: count }, () => charity({ place, city: place }))
+  const site = siteOf([
+    ...at('Wellington', 3),
+    ...at('Wellington CBD'),
+    ...at('WELLINGTON CENTRAL'),
+    ...at('Lower Hutt', 3),
+    ...at('Hutt City'),
+    ...at('Palmerston', 3),
+    ...at('Palmerston North', 3),
+    ...at('Havelock', 3),
+    ...at('Havelock North', 3),
+    ...at('Kansas City', 3), // no "Kansas" in the data: stays as it is
+  ])
+  assert.deepEqual(
+    site.towns.map((t) => [t.name, t.charities.length]),
+    [
+      ['Havelock', 3],
+      ['Havelock North', 3],
+      ['Kansas City', 3],
+      ['Lower Hutt', 4],
+      ['Palmerston', 3],
+      ['Palmerston North', 3],
+      ['Wellington', 5],
+    ],
+  )
+  assert.deepEqual(
+    [...site.mergedTowns].map(([slug, town]) => [slug, town.slug]),
+    [
+      ['wellington-cbd', 'wellington'],
+      ['wellington-central', 'wellington'],
+      ['hutt-city', 'lower-hutt'],
+    ],
+  )
+  const wellington = townPage(ctx, site.towns.find((t) => t.slug === 'wellington')!)
+  assert.match(wellington, /<span class="sub">Wellington CBD<\/span>/, 'the list still says which part of town')
 })
 
 test('neighbours: the same address is listed apart, and nearby ones go closest first', () => {
