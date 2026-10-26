@@ -21,6 +21,23 @@ Charities Services OData ──► GitHub Actions, nightly ───────
 &#x20;
 ```
 
+## Pages for search engines
+
+The map runs in JavaScript, so search engines and AI crawlers can't read it on their own. After
+`vite build`, `npm run build` runs `scripts/seo/build-pages.mts`, which reads the same public data
+as the map and writes plain HTML pages into `dist/`:
+
+* `/charity/CC12345/`: one page per charity, with its purpose, address and nearby charities
+* `/in/nelson/`: one page per town with 3 or more charities; towns with more than 400 get one page per sector (`/in/auckland/health/`)
+* `/sector/health/` and `/browse/`: the index pages
+* `/sitemap.xml`, plus a `Sitemap:` line added to `robots.txt`
+
+The pages are rebuilt on every deploy. To refresh them weekly between code changes, create a
+build hook in Netlify and save its URL as the `NETLIFY_BUILD_HOOK` repository secret; the
+Saturday full sync then triggers a deploy. Builds without Supabase settings skip this step, and
+`SEO_PAGES=off` turns it off. If the data can't be loaded, the build fails, so Netlify keeps
+the current site live. Tests: `npm run test:pages`.
+
 ## Data licences
 
 * **Charity data:** © Charities Services, licensed under CC BY 3.0 NZ.

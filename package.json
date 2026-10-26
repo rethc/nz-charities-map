@@ -8,13 +8,14 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/seo/build-pages.mts",
     "typecheck": "tsc -b",
     "lint": "oxlint",
     "preview": "vite preview",
     "test:etl": "uvx --with httpx pytest scripts/tests -q",
     "test:functions": "node --test tests/geocode-function.test.mts",
-    "test": "npm run test:functions && npm run test:etl"
+    "test:pages": "node --test tests/seo-pages.test.mts",
+    "test": "npm run test:functions && npm run test:pages && npm run test:etl"
   },
   "dependencies": {
     "@fontsource-variable/roboto": "^5.3.0",

@@ -362,6 +362,13 @@ export function MapPage() {
         <div className="mb-3 flex items-center gap-2.5">
           <BrandMark size={26} />
           <h1 className="text-[1.0625rem] leading-tight font-bold tracking-tight">NZ Charities Map</h1>
+          {/* A plain link, not a router one: the browse pages are static files built after the app (scripts/seo). */}
+          <a
+            href="/browse/"
+            className="ml-auto text-sm font-semibold text-mist underline decoration-ink-line underline-offset-4 hover:text-paper hover:decoration-kowhai"
+          >
+            Browse list
+          </a>
         </div>
         <SearchBox
           value={query}

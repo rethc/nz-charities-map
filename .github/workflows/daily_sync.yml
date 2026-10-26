@@ -77,3 +77,23 @@ jobs:
             --time-budget-minutes 150 \
             --publish-snapshot \
             $RETRY_REVIEW
+
+      # The site's charity, town and sector pages are built from the database when Netlify
+      # deploys (scripts/seo/build-pages.mts). This asks Netlify for a fresh deploy once a week,
+      # after the full sync, so they follow the register between code changes. Weekly, not
+      # nightly: every production deploy uses Netlify build credits.
+      # Optional: needs a Netlify build hook URL in the NETLIFY_BUILD_HOOK repository secret.
+      - name: Refresh the site's charity pages
+        if: github.event.schedule == '30 15 * * 6' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'full')
+        env:
+          NETLIFY_BUILD_HOOK: ${{ secrets.NETLIFY_BUILD_HOOK }}
+        run: |
+          if [ -z "$NETLIFY_BUILD_HOOK" ]; then
+            echo "::notice::NETLIFY_BUILD_HOOK is not set, so the charity pages refresh on the next deploy instead."
+            exit 0
+          fi
+          if curl -fsS -X POST -d '{}' "$NETLIFY_BUILD_HOOK" > /dev/null; then
+            echo "Asked Netlify to rebuild the site."
+          else
+            echo "::warning::Netlify didn't accept the build hook. The charity pages refresh on the next deploy instead."
+          fi
