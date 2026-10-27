@@ -156,6 +156,16 @@ export type Database = {
         Args: { p_findings: Json }
         Returns: number
       }
+      /** Admins only. Returns StatementReviews. Added by the statement_reviews migration. */
+      get_statement_reviews: {
+        Args: never
+        Returns: Json
+      }
+      /** Admins only: adds StatementReviewUpload rows, replacing the same charity and year. */
+      upsert_statement_reviews: {
+        Args: { p_reviews: Json }
+        Returns: number
+      }
     }
     Enums: { [_ in never]: never }
     CompositeTypes: { [_ in never]: never }
@@ -207,6 +217,44 @@ export type ReturnChecks = {
   /** When the checks last ran; null before the first run. */
   checked_at: string | null
   findings: ReturnCheckFinding[]
+}
+
+/** fail: worth a look; warn: a small thing; na: not checked. */
+export type StatementCheckStatus = 'pass' | 'fail' | 'warn' | 'na'
+
+/** One charity's financial statements, read and checked against the return they were filed with. */
+export type StatementReview = {
+  cc: string
+  year_ended: string
+  name: string
+  tier: number | null
+  verdict: 'look' | 'minor' | 'fine' | 'unread'
+  review: {
+    /** The main finding, in a short line. */
+    top: string
+    /** Two or three sentences. */
+    assessment: string
+    confidence: string
+    confidence_why: string
+    checks: { label: string; detail: string; status: StatementCheckStatus }[]
+    figures: { what: string; declared: string; statement: string; page: string; ok: boolean }[]
+    evidence: { quote: string; page: string; where: string }[]
+    first_page: string
+  }
+  reviewed_at?: string
+}
+
+export type StatementReviews = {
+  /** When the latest review was uploaded; null before the first. */
+  reviewed_at: string | null
+  reviews: StatementReview[]
+}
+
+/** The results file an admin uploads on the Statements tab. */
+export type StatementReviewUpload = {
+  kind: 'nz-charities-map/statement-reviews'
+  version: 1
+  reviews: StatementReview[]
 }
 
 /** One row of `get_charities_in_view(..., format => 'compact')`. `group_cc` arrived with v2. */

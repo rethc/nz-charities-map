@@ -64,6 +64,7 @@ import type { ReturnCheckFinding, ReturnChecks } from '../../lib/database.types'
 import { formatCount } from '../../lib/dom'
 import { fold } from '../../lib/search'
 import { supabase } from '../../lib/supabase'
+import { StatementsView } from './StatementsView'
 
 /**
  * Annual return checks (scripts/return_checks.py), for admins only, in Microsoft's Fluent UI:
@@ -73,7 +74,7 @@ import { supabase } from '../../lib/supabase'
 
 type CheckName = ReturnCheckFinding['check']
 type Group = 'acceptance' | 'register' | 'indicators'
-type View = 'overview' | Group
+type View = 'overview' | Group | 'statements'
 type LoadState = { status: 'loading' } | { status: 'ready'; data: ReturnChecks } | { status: 'error'; message: string }
 type Sort = { sortColumn: TableColumnId | undefined; sortDirection: 'ascending' | 'descending' }
 
@@ -471,7 +472,7 @@ function Returns({ email }: { email: string | null }) {
               <Body1 className={s.lead}>
                 {formatCount(flagged)} charities have at least one finding from the ten checks that need nothing but the
                 register's public data: two acceptance checks, three register cross-checks and five standard indicators.
-                The checks that read the financial statements come later.
+                The checks that read the financial statements are on the Statements tab.
               </Body1>
             )}
           </div>
@@ -523,10 +524,13 @@ function Returns({ email }: { email: string | null }) {
                     {GROUPS[g].tab} <Badge appearance="tint" color="informative" shape="circular" size="small">{formatCount(groupCount(g))}</Badge>
                   </Tab>
                 ))}
+                <Tab value="statements">Statements</Tab>
               </TabList>
 
               {view === 'overview' ? (
                 <Overview rows={rows} lists={lists} charities={charities} onView={show} />
+              ) : view === 'statements' ? (
+                <StatementsView />
               ) : (
                 <GroupView group={view} lists={lists} check={picked[view]} onCheck={show} />
               )}
@@ -690,8 +694,8 @@ function Catalogue({ lists, onView }: { lists: Record<CheckName, Row[]>; onView:
       <div className={s.cardTitle}>
         <Subtitle2 as="h2">The ten checks</Subtitle2>
         <Body1 className={s.muted}>
-          Each reads only the register's public data feed. Statement completion and reconciliation need the PDFs and come
-          later.
+          Each reads only the register's public data feed. The checks that read the financial statements are on the
+          Statements tab.
         </Body1>
       </div>
       <div className={s.gridBox}>
