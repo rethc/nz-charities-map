@@ -52,7 +52,7 @@ import {
   Open16Regular,
   SignOut20Regular,
 } from '@fluentui/react-icons'
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { BrandMark } from '../../components/Icons'
 import { RequireAdmin } from '../../components/RequireAdmin'
@@ -259,7 +259,7 @@ const useStyles = makeStyles({
   appNav: { marginLeft: 'auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 8px' },
   email: { color: tokens.colorNeutralForeground3, '@media (max-width: 640px)': { display: 'none' } },
   scroll: { flex: '1 1 auto', minHeight: 0, overflowY: 'auto' },
-  page: { maxWidth: '1320px', margin: '0 auto', padding: '16px clamp(16px, 3vw, 32px) 40px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '16px' },
+  page: { maxWidth: '1760px', margin: '0 auto', padding: '16px clamp(16px, 3vw, 32px) 40px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '16px' },
   head: { display: 'grid', gap: '6px' },
   titleRow: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px 12px' },
   lead: { color: tokens.colorNeutralForeground2, maxWidth: '92ch' },
@@ -689,10 +689,10 @@ function Catalogue({ lists, onView }: { lists: Record<CheckName, Row[]>; onView:
     <Card className={mergeClasses(s.card, s.wide)}>
       <div className={s.cardTitle}>
         <Subtitle2 as="h2">The ten checks</Subtitle2>
-        <Caption1 className={s.muted}>
+        <Body1 className={s.muted}>
           Each reads only the register's public data feed. Statement completion and reconciliation need the PDFs and come
           later.
-        </Caption1>
+        </Body1>
       </div>
       <div className={s.gridBox}>
         <Table size="small" aria-label="The ten checks">
@@ -762,7 +762,7 @@ function ChartCard({ title, description, onView, children }: { title: string; de
       <div className={s.cardHead}>
         <div className={s.cardTitle}>
           <Subtitle2 as="h2">{title}</Subtitle2>
-          <Caption1 className={s.muted}>{description}</Caption1>
+          <Body1 className={s.muted}>{description}</Body1>
         </div>
         <Button appearance="subtle" onClick={onView}>
           View list
@@ -936,7 +936,14 @@ function columnsFor(kind: CheckName, narrow: boolean): TableColumnDefinition<Row
     columnId: 'value',
     compare: (a, b) => (a.value ?? 0) - (b.value ?? 0),
     renderHeaderCell: () => CHECK[kind].figure,
-    renderCell: (r) => <span style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{r.shown ?? '—'}</span>,
+    // Two figures ("income / spending") sit one above the other, so neither runs into the next column.
+    renderCell: (r) => (
+      <span style={{ display: 'grid', padding: '8px 0', fontVariantNumeric: 'tabular-nums' }}>
+        {(r.shown ?? '—').split(' / ').map((part) => (
+          <span key={part}>{part}</span>
+        ))}
+      </span>
+    ),
   })
   const finding = createTableColumn<Row>({
     columnId: 'summary',
@@ -978,6 +985,29 @@ function columnsFor(kind: CheckName, narrow: boolean): TableColumnDefinition<Row
     ),
   })
   return narrow ? [name, tier, figure] : [name, cc, tier, figure, finding]
+}
+
+/**
+ * Column widths. Names, sectors and findings share the spare room (grow), so the grid fills any
+ * width; figures, dates and badges keep the room their content needs. `min` is in px.
+ */
+const COLUMN: Record<string, { grow: number; min: number }> = {
+  name: { grow: 3, min: 160 },
+  sector: { grow: 1.4, min: 140 },
+  registered: { grow: 1.4, min: 160 },
+  summary: { grow: 5, min: 300 },
+  cc: { grow: 0, min: 112 },
+  tier: { grow: 0, min: 100 },
+  value: { grow: 0, min: 150 },
+  yearEnded: { grow: 0, min: 136 },
+  due: { grow: 0, min: 136 },
+  returnYearEnded: { grow: 0, min: 150 },
+  days: { grow: 0, min: 112 },
+}
+const CELL_PADDING = 16
+function columnStyle(id: TableColumnId): CSSProperties {
+  const { grow, min } = COLUMN[String(id)] ?? { grow: 1, min: 120 }
+  return { flex: grow ? `${grow} 1 0` : `0 0 ${min + CELL_PADDING}px`, minWidth: min + CELL_PADDING }
 }
 
 function FindingsGrid({ info, rows }: { info: CheckInfo; rows: Row[] }) {
@@ -1025,7 +1055,7 @@ function FindingsGrid({ info, rows }: { info: CheckInfo; rows: Row[] }) {
     <Card className={s.card}>
       <div className={s.cardTitle}>
         <Subtitle2 as="h2">{title}</Subtitle2>
-        <Caption1 className={s.muted}>{info.description}</Caption1>
+        <Body1 className={s.muted}>{info.description}</Body1>
       </div>
       <div className={s.toolbar}>
         <SearchBox
@@ -1038,9 +1068,9 @@ function FindingsGrid({ info, rows }: { info: CheckInfo; rows: Row[] }) {
             restart()
           }}
         />
-        <Caption1 className={s.muted} aria-live="polite">
+        <Body1 className={s.muted} aria-live="polite">
           {filtered.length === rows.length ? `${formatCount(rows.length)} rows` : `${formatCount(filtered.length)} of ${formatCount(rows.length)} rows`}
-        </Caption1>
+        </Body1>
       </div>
       <div ref={boxRef} className={s.gridBox}>
         <DataGrid
@@ -1054,31 +1084,30 @@ function FindingsGrid({ info, rows }: { info: CheckInfo; rows: Row[] }) {
           }}
           getRowId={(r: Row) => r.id}
           focusMode="composite"
-          resizableColumns={!narrow}
-          columnSizingOptions={{
-            name: { defaultWidth: 300, minWidth: 180, idealWidth: 300 },
-            cc: { defaultWidth: 110, minWidth: 90 },
-            sector: { defaultWidth: 180, minWidth: 120 },
-            tier: { defaultWidth: 90, minWidth: 80 },
-            value: { defaultWidth: 150, minWidth: 110 },
-            summary: { defaultWidth: 620, minWidth: 260, idealWidth: 620 },
-          }}
+          // Below the columns' least widths the list scrolls sideways in its box, not the page.
+          style={{ minWidth: columns.reduce((sum, c) => sum + Number(columnStyle(c.columnId).minWidth), 0) }}
         >
           <DataGridHeader className={s.gridHead}>
-            <DataGridRow>{({ renderHeaderCell }) => <DataGridHeaderCell>{renderHeaderCell()}</DataGridHeaderCell>}</DataGridRow>
+            <DataGridRow>
+              {({ renderHeaderCell, columnId }) => (
+                <DataGridHeaderCell style={columnStyle(columnId)}>{renderHeaderCell()}</DataGridHeaderCell>
+              )}
+            </DataGridRow>
           </DataGridHeader>
           <DataGridBody<Row>>
             {({ item, rowId }) => (
-              <DataGridRow<Row> key={rowId}>{({ renderCell }) => <DataGridCell>{renderCell(item)}</DataGridCell>}</DataGridRow>
+              <DataGridRow<Row> key={rowId}>
+                {({ renderCell, columnId }) => <DataGridCell style={columnStyle(columnId)}>{renderCell(item)}</DataGridCell>}
+              </DataGridRow>
             )}
           </DataGridBody>
         </DataGrid>
         <div ref={endRef} className={s.gridEnd} aria-hidden="true" />
       </div>
       {more && (
-        <Caption1 className={s.muted}>
+        <Body1 className={s.muted}>
           Showing {formatCount(shown)} of {formatCount(filtered.length)}. Scroll the list for more.
-        </Caption1>
+        </Body1>
       )}
     </Card>
   )
