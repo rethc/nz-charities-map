@@ -331,7 +331,7 @@ function Triage({ email }: { email: string | null }) {
         {load.status === 'ready' && <p className="text-sm text-mist">{formatCount(queueTotal)} to review</p>}
         <nav aria-label="Account" className="ml-auto flex items-center gap-4 text-base">
           <Link to="/admin/returns" className="rounded px-2 py-1 font-semibold text-white hover:bg-ink-soft">
-            Return checks
+            Annual Return checks
           </Link>
           <Link to="/" className="rounded px-2 py-1 font-semibold text-white hover:bg-ink-soft">
             Public map
