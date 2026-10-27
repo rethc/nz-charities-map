@@ -179,6 +179,8 @@ const GROUPS: Record<Group, { tab: string; title: string; foot: string; icon: Re
 }
 const GROUP_NAMES = Object.keys(GROUPS) as Group[]
 const PAGE = 100
+/** Charities shown in the overview's tier chart: the full list is under A2. */
+const TIER_TOP = 12
 const NOT_ON_MAP = 'Not on the map'
 
 const dateFormat = new Intl.DateTimeFormat('en-NZ', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
@@ -281,6 +283,8 @@ const useStyles = makeStyles({
   muted: { color: tokens.colorNeutralForeground3 },
   tabs: { flexWrap: 'wrap', borderBottom: `1px solid ${tokens.colorNeutralStroke2}` },
   wide: { gridColumn: '1 / -1' },
+  overview: { display: 'grid', gap: '16px', minWidth: 0 },
+  column: { display: 'grid', gap: '16px', alignContent: 'start', minWidth: 0 },
   subTabs: { flexWrap: 'wrap', rowGap: '4px' },
   codeCol: { width: '72px' },
   countCol: { width: '96px', textAlign: 'end', fontVariantNumeric: 'tabular-nums' },
@@ -580,52 +584,56 @@ function Overview({
   const offMap = lists.overdue.filter((r) => r.sector === NOT_ON_MAP).length
 
   return (
-    <div className={s.grid}>
+    <div className={s.overview}>
       <Catalogue lists={lists} onView={onView} />
-      <ChartCard title="Overdue returns by how late" description="Due 6 months after the balance date. Grey: up to 60 days, often still being processed." onView={() => onView('overdue')}>
-        <HBars
-          rows={lateness}
-          format={(v) => formatCount(v)}
-          tick={(v) => formatCount(v)}
-          tip={(r) => [`${r.label} late`, `${formatCount(r.value)} charities`]}
-          label="Overdue returns by how late"
-        />
-      </ChartCard>
-      <ChartCard
-        title="Late returns by sector"
-        description={`Share of each sector's charities on the map more than ${LATE_DAYS} days late. ${formatCount(offMap)} late charities aren't on the map and aren't counted.`}
-        onView={() => onView('overdue')}
-      >
-        {sectors ? (
-          <HBars
-            rows={sectors}
-            format={pct}
-            tick={(v) => `${Math.round(v * 100)}%`}
-            tip={(r) => {
-              const x = sectors.find((q) => q.key === r.key)!
-              return [r.label, `${formatCount(x.late)} of ${formatCount(x.total)} charities on the map`, `${pct(r.value)} more than ${LATE_DAYS} days late`]
-            }}
-            label="Share of charities more than 60 days late, by sector"
-          />
-        ) : (
-          <div className={s.center}>
-            {charities.status === 'error' ? <Caption1>Couldn't load the map's charities.</Caption1> : <Spinner size="small" />}
-          </div>
-        )}
-      </ChartCard>
-      <ChartCard
-        title="Spending against the tier limit"
-        description="Each return's spending as a multiple of that year's tier limit: over it for longer than allowed, or moved down a tier while over the lower tier's limit."
-        onView={() => onView('tier_over_limit')}
-      >
-        <div className={s.legend} aria-hidden="true">
-          <Caption1 className={s.legendItem}><span className={s.dot} style={{ opacity: 0.3 }} />Earliest</Caption1>
-          <Caption1 className={s.legendItem}><span className={s.dot} style={{ opacity: 0.6 }} />Middle</Caption1>
-          <Caption1 className={s.legendItem}><span className={s.dot} />Latest year</Caption1>
-          <Caption1 className={s.legendItem}><span className={s.dash} />Tier limit</Caption1>
+      <div className={s.grid}>
+        <div className={s.column}>
+          <ChartCard title="Overdue returns by how late" description="Due 6 months after the balance date. Grey: up to 60 days, often still being processed." onView={() => onView('overdue')}>
+            <HBars
+              rows={lateness}
+              format={(v) => formatCount(v)}
+              tick={(v) => formatCount(v)}
+              tip={(r) => [`${r.label} late`, `${formatCount(r.value)} charities`]}
+              label="Overdue returns by how late"
+            />
+          </ChartCard>
+          <ChartCard
+            title="Spending against the tier limit"
+            description={`The ${formatCount(Math.min(TIER_TOP, lists.tier_over_limit.length))} furthest over, of ${formatCount(lists.tier_over_limit.length)}: each return's spending as a multiple of that year's tier limit.`}
+            onView={() => onView('tier_over_limit')}
+          >
+            <div className={s.legend} aria-hidden="true">
+              <Caption1 className={s.legendItem}><span className={s.dot} style={{ opacity: 0.3 }} />Earliest</Caption1>
+              <Caption1 className={s.legendItem}><span className={s.dot} style={{ opacity: 0.6 }} />Middle</Caption1>
+              <Caption1 className={s.legendItem}><span className={s.dot} />Latest year</Caption1>
+              <Caption1 className={s.legendItem}><span className={s.dash} />Tier limit</Caption1>
+            </div>
+            <TierDots rows={lists.tier_over_limit} />
+          </ChartCard>
         </div>
-        <TierDots rows={lists.tier_over_limit} />
-      </ChartCard>
+        <ChartCard
+          title="Late returns by sector"
+          description={`Share of each sector's charities on the map more than ${LATE_DAYS} days late. ${formatCount(offMap)} late charities aren't on the map and aren't counted.`}
+          onView={() => onView('overdue')}
+        >
+          {sectors ? (
+            <HBars
+              rows={sectors}
+              format={pct}
+              tick={(v) => `${Math.round(v * 100)}%`}
+              tip={(r) => {
+                const x = sectors.find((q) => q.key === r.key)!
+                return [r.label, `${formatCount(x.late)} of ${formatCount(x.total)} charities on the map`, `${pct(r.value)} more than ${LATE_DAYS} days late`]
+              }}
+              label="Share of charities more than 60 days late, by sector"
+            />
+          ) : (
+            <div className={s.center}>
+              {charities.status === 'error' ? <Caption1>Couldn't load the map's charities.</Caption1> : <Spinner size="small" />}
+            </div>
+          )}
+        </ChartCard>
+      </div>
     </div>
   )
 }
@@ -833,7 +841,7 @@ function HBars<T extends { key: string; label: string; value: number; muted?: bo
   )
 }
 
-/** Each charity's last three years of spending as a multiple of its tier limit. */
+/** The charities furthest over: each one's returns as a multiple of that year's tier limit. */
 function TierDots({ rows }: { rows: Row[] }) {
   const s = useStyles()
   const [ref, box] = useElementBox<HTMLDivElement>()
@@ -848,7 +856,8 @@ function TierDots({ rows }: { rows: Row[] }) {
           })
           return { ...r, pts, max: Math.max(...pts.map((p) => p.ratio), 0) }
         })
-        .sort((a, b) => b.max - a.max),
+        .sort((a, b) => b.max - a.max)
+        .slice(0, TIER_TOP),
     [rows],
   )
   const width = Math.max(280, box.width)
