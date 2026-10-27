@@ -119,7 +119,9 @@ export function MapPage() {
   useEffect(() => {
     const next = new URLSearchParams()
     const q = debouncedQuery.trim()
-    if (q) next.set('q', q)
+    // A search for the open charity's own number adds nothing but a map with every other pin hidden,
+    // so the address is just ?cc=CC47935, as the copy-link button gives.
+    if (q && q.replace(/\s/g, '').toUpperCase() !== urlCc) next.set('q', q)
     for (const s of sectorKey ? sectorKey.split('\n') : []) next.append('sector', s)
     if (urlCc) next.set('cc', urlCc)
     if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true })
