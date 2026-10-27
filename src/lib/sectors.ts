@@ -2,19 +2,19 @@
  * Point colours by sector. The eight biggest sectors each have a colour fixed by name, so a
  * sync that changes their order by size never swaps colours; the long tail shares a neutral
  * grey. The set was checked as a whole, because every pair can sit side by side on the map:
- * each pair stays apart under simulated red-green and blue-yellow colour blindness, and each
- * colour stays apart from the grey. Swap one and the set needs checking again.
- * The pills double as the legend.
+ * each pair, the grey included, stays apart for normal vision and under simulated red-green
+ * colour blindness. None is the brand blue or the alert red, so a dot never reads as a link or
+ * a warning. Swap one and the set needs checking again. The pills double as the legend.
  */
 const SECTOR_COLOURS: Record<string, string> = {
-  'religious activities': '#0072B2',
+  'religious activities': '#493AA9',
   'education / training / research': '#D55E00',
-  'arts / culture / heritage': '#F275C1',
+  'arts / culture / heritage': '#CD559B',
   'community development': '#C4A618',
-  health: '#9F0934',
+  health: '#88186F',
   'sport / recreation': '#4CAFFC',
   'social services': '#9566F5',
-  'environment / conservation': '#52A27A',
+  'environment / conservation': '#21610E',
 }
 export const OTHER_COLOUR = '#6F6A64'
 

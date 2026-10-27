@@ -89,6 +89,16 @@ const CLICKABLE = [LAYER.clusters, LAYER.points, LAYER.labels]
 const INK = '#1a242c'
 /** The white card behind each charity's name, so names stand apart from the basemap's street names. */
 const LABEL_CARD = 'charity-label-card'
+/**
+ * Name cards on a phone: smaller and further apart, so fewer fit and they don't bury the
+ * little map left above the details panel.
+ */
+const PHONE = '(max-width: 40rem)'
+function labelStyle(phone: boolean): { size: ExpressionSpecification; padding: number } {
+  return phone
+    ? { size: ['interpolate', ['linear'], ['zoom'], 15, 13, 18, 15], padding: 12 }
+    : { size: ['interpolate', ['linear'], ['zoom'], 15, 15, 18, 17], padding: 2 }
+}
 /** Points stay clustered up to this zoom; beyond it every charity is drawn. */
 const CLUSTER_MAX_ZOOM = 14
 /** Clusters up to this size fetch their members so a click can fit them exactly. */
@@ -271,6 +281,7 @@ function addCharityLayers(map: MapLibreMap, selectedSpots: readonly number[]) {
       'circle-stroke-color': '#ffffff',
     },
   })
+  const label = labelStyle(window.matchMedia(PHONE).matches)
   map.addLayer({
     id: LAYER.labels,
     type: 'symbol',
@@ -281,7 +292,8 @@ function addCharityLayers(map: MapLibreMap, selectedSpots: readonly number[]) {
     layout: {
       'text-field': ['get', 'name'],
       'text-font': LABEL_FONT_BOLD,
-      'text-size': ['interpolate', ['linear'], ['zoom'], 15, 15, 18, 17],
+      'text-size': label.size,
+      'text-padding': label.padding,
       'text-max-width': 10,
       'text-line-height': 1.2,
       'text-variable-anchor': ['top', 'bottom', 'left', 'right'],
@@ -393,8 +405,19 @@ export function CharityMap({ data, selected, popup, initialZoom, fitPadding, onP
       setLoaded(true)
     })
 
+    // A phone turned sideways, or a window resized past the breakpoint, gets the matching name cards.
+    const phone = window.matchMedia(PHONE)
+    const onScreenChange = () => {
+      if (!map.getLayer(LAYER.labels)) return
+      const label = labelStyle(phone.matches)
+      map.setLayoutProperty(LAYER.labels, 'text-size', label.size)
+      map.setLayoutProperty(LAYER.labels, 'text-padding', label.padding)
+    }
+    phone.addEventListener('change', onScreenChange)
+
     mapRef.current = map
     return () => {
+      phone.removeEventListener('change', onScreenChange)
       map.remove()
       mapRef.current = null
       setLoaded(false)
