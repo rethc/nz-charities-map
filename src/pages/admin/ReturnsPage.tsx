@@ -52,7 +52,7 @@ import {
   Open16Regular,
   SignOut20Regular,
 } from '@fluentui/react-icons'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { BrandMark } from '../../components/Icons'
 import { RequireAdmin } from '../../components/RequireAdmin'
@@ -318,8 +318,16 @@ const useStyles = makeStyles({
   dash: { width: '14px', height: 0, borderTop: `2px dashed ${tokens.colorNeutralForeground3}` },
   toolbar: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '8px 12px' },
   search: { width: 'min(100%, 22rem)' },
-  gridBox: { overflowX: 'auto', border: `1px solid ${tokens.colorNeutralStroke2}`, borderRadius: tokens.borderRadiusMedium, backgroundColor: tokens.colorNeutralBackground1 },
-  more: { justifySelf: 'start' },
+  // The list scrolls in its own box, as Dynamics 365's grid does, so its column headings stay in view.
+  gridBox: {
+    overflow: 'auto',
+    maxHeight: 'min(72vh, 60rem)',
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: tokens.borderRadiusMedium,
+    backgroundColor: tokens.colorNeutralBackground1,
+  },
+  gridHead: { position: 'sticky', top: 0, zIndex: 2, backgroundColor: tokens.colorNeutralBackground1, boxShadow: `0 1px 0 ${tokens.colorNeutralStroke2}` },
+  gridEnd: { height: '1px' },
   center: { display: 'grid', placeItems: 'center', minHeight: '200px' },
 })
 
@@ -574,7 +582,7 @@ function Overview({
         key: label,
         label,
         value: overdue.filter((r) => r.days >= low && r.days <= high).length,
-        muted: high <= LATE_DAYS,
+        color: high <= LATE_DAYS ? WARM : undefined,
       })),
     [overdue],
   )
@@ -589,7 +597,6 @@ function Overview({
       })
       .sort((a, b) => b.value - a.value)
   }, [charities, lists.overdue])
-  const offMap = lists.overdue.filter((r) => r.sector === NOT_ON_MAP).length
   const tierBars = useMemo(
     () =>
       lists.tier_over_limit
@@ -619,7 +626,7 @@ function Overview({
       <Catalogue lists={lists} onView={onView} />
       <div className={s.grid}>
         <div className={s.column}>
-          <ChartCard title="Overdue returns by how late" description="Due 6 months after the balance date. Grey: up to 60 days, often still being processed." onView={() => onView('overdue')}>
+          <ChartCard title="Overdue returns by how late" description="Due 6 months after the balance date. Orange: up to 60 days." onView={() => onView('overdue')}>
             <HBars
               rows={lateness}
               format={(v) => formatCount(v)}
@@ -650,7 +657,7 @@ function Overview({
         </div>
         <ChartCard
           title="Late returns by sector"
-          description={`Share of each sector's charities on the map more than ${LATE_DAYS} days late. ${formatCount(offMap)} late charities aren't on the map and aren't counted.`}
+          description={`Share of each sector's charities on the map more than ${LATE_DAYS} days late.`}
           onView={() => onView('overdue')}
         >
           {sectors ? (
@@ -813,7 +820,7 @@ function TipBox({ tip, width }: { tip: Tip | null; width: number }) {
 }
 
 /** Horizontal bars in Fluent's chart style: a value axis along the bottom, values at the bar ends. */
-function HBars<T extends { key: string; label: string; value: number; muted?: boolean; color?: string }>({
+function HBars<T extends { key: string; label: string; value: number; color?: string }>({
   rows,
   format,
   tick,
@@ -861,7 +868,7 @@ function HBars<T extends { key: string; label: string; value: number; muted?: bo
                   {clip(r.label, LABEL, labelW)}
                 </text>
                 <rect x={left} y={y} width={Math.max(2, x(r.value) - left)} height={bar} rx={2}
-                  style={{ fill: r.color ?? (r.muted ? tokens.colorNeutralStroke1Pressed : tokens.colorBrandForeground1) }} />
+                  style={{ fill: r.color ?? tokens.colorBrandForeground1 }} />
                 <text x={Math.max(left, x(r.value)) + 6} y={y + bar / 2} dy="0.35em" fontSize={TICK} fontWeight={600}
                   style={{ fill: tokens.colorNeutralForeground1, fontVariantNumeric: 'tabular-nums' }}>
                   {format(r.value)}
@@ -992,6 +999,27 @@ function FindingsGrid({ info, rows }: { info: CheckInfo; rows: Row[] }) {
     return hit.slice().sort((a, b) => col.compare(a, b) * sign)
   }, [rows, query, sort, columns])
   const page = filtered.slice(0, shown)
+  const more = filtered.length > shown
+
+  // Continuous scroll, as in Dynamics 365's grid: the next rows load as the end of the list comes
+  // into view. Set up again after each load, so a tall box keeps filling until it can scroll.
+  const boxRef = useRef<HTMLDivElement>(null)
+  const endRef = useRef<HTMLDivElement>(null)
+  const total = filtered.length
+  useEffect(() => {
+    const end = endRef.current
+    if (shown >= total || !end) return
+    const observer = new IntersectionObserver((entries) => entries.some((e) => e.isIntersecting) && setShown((n) => n + PAGE), {
+      root: boxRef.current,
+      rootMargin: '0px 0px 400px 0px',
+    })
+    observer.observe(end)
+    return () => observer.disconnect()
+  }, [shown, total])
+  const restart = () => {
+    setShown(PAGE)
+    boxRef.current?.scrollTo({ top: 0 })
+  }
 
   return (
     <Card className={s.card}>
@@ -1007,20 +1035,23 @@ function FindingsGrid({ info, rows }: { info: CheckInfo; rows: Row[] }) {
           value={query}
           onChange={(_, d) => {
             setQuery(d.value)
-            setShown(PAGE)
+            restart()
           }}
         />
         <Caption1 className={s.muted} aria-live="polite">
           {filtered.length === rows.length ? `${formatCount(rows.length)} rows` : `${formatCount(filtered.length)} of ${formatCount(rows.length)} rows`}
         </Caption1>
       </div>
-      <div className={s.gridBox}>
+      <div ref={boxRef} className={s.gridBox}>
         <DataGrid
           items={page}
           columns={columns}
           sortable
           sortState={sort}
-          onSortChange={(_, next) => setSort(next as Sort)}
+          onSortChange={(_, next) => {
+            setSort(next as Sort)
+            restart()
+          }}
           getRowId={(r: Row) => r.id}
           focusMode="composite"
           resizableColumns={!narrow}
@@ -1033,7 +1064,7 @@ function FindingsGrid({ info, rows }: { info: CheckInfo; rows: Row[] }) {
             summary: { defaultWidth: 620, minWidth: 260, idealWidth: 620 },
           }}
         >
-          <DataGridHeader>
+          <DataGridHeader className={s.gridHead}>
             <DataGridRow>{({ renderHeaderCell }) => <DataGridHeaderCell>{renderHeaderCell()}</DataGridHeaderCell>}</DataGridRow>
           </DataGridHeader>
           <DataGridBody<Row>>
@@ -1042,11 +1073,12 @@ function FindingsGrid({ info, rows }: { info: CheckInfo; rows: Row[] }) {
             )}
           </DataGridBody>
         </DataGrid>
+        <div ref={endRef} className={s.gridEnd} aria-hidden="true" />
       </div>
-      {filtered.length > shown && (
-        <Button className={s.more} onClick={() => setShown((n) => n + PAGE)}>
-          Load {formatCount(Math.min(PAGE, filtered.length - shown))} more
-        </Button>
+      {more && (
+        <Caption1 className={s.muted}>
+          Showing {formatCount(shown)} of {formatCount(filtered.length)}. Scroll the list for more.
+        </Caption1>
       )}
     </Card>
   )
