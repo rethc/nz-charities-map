@@ -11,7 +11,7 @@
 
 create table if not exists public.return_checks (
   id               bigint generated always as identity primary key,
-  check_name       text not null,          -- year_end_mismatch | overdue | tier_over_limit
+  check_name       text not null,          -- one of the checks in scripts/return_checks.py
   cc_number        text not null,
   charity_name     text not null,
   annual_return_id bigint,                 -- the return the finding is about, when there is one

@@ -1,6 +1,6 @@
 name: Annual return checks
 
-# Flags annual returns worth a closer look (overdue, year end differs, over a tier's limit)
+# Flags annual returns worth a closer look (ten checks: acceptance, register, indicators)
 # from the Charities Register's public data, for the site's admin area (/admin/returns).
 # The log shows counts only: this repository's Action logs are public, the results are not.
 

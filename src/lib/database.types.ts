@@ -181,14 +181,25 @@ export type CharityDetail = Pick<
 
 /** One finding of the annual return checks (scripts/return_checks.py), as get_return_checks() returns it. */
 export type ReturnCheckFinding = {
-  check: 'overdue' | 'year_end_mismatch' | 'tier_over_limit'
+  check:
+    | 'year_end_mismatch'
+    | 'tier_over_limit'
+    | 'overdue'
+    | 'missing_year'
+    | 'prior_year_mismatch'
+    | 'negative_net_assets'
+    | 'deficits'
+    | 'big_swing'
+    | 'staff_pay_no_staff'
+    | 'repeated_figures'
   cc: string
   name: string
   return_id: number | null
   year_ended: string | null
   /** One plain sentence. */
   summary: string
-  /** Per check: days_overdue and due for `overdue`; tier, limit and spent for `tier_over_limit`. */
+  /** Per check (days_overdue and due for `overdue`; tier, limits and spent for `tier_over_limit`), plus
+   *  `value`, a number to sort by, and `shown`, that figure as the page shows it. */
   details: Record<string, unknown>
 }
 

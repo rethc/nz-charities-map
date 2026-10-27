@@ -19,6 +19,7 @@ import {
   FluentProvider,
   Link,
   makeStyles,
+  mergeClasses,
   MessageBar,
   MessageBarActions,
   MessageBarBody,
@@ -27,8 +28,14 @@ import {
   Spinner,
   Subtitle2,
   Tab,
-  TabList,
+  Table,
+  TableBody,
+  TableCell,
   TableCellLayout,
+  TableHeader,
+  TableHeaderCell,
+  TableRow,
+  TabList,
   Text,
   Title3,
   tokens,
@@ -39,9 +46,9 @@ import {
 } from '@fluentui/react-components'
 import {
   ArrowSync20Regular,
-  CalendarLtr20Regular,
-  ClockAlarm20Regular,
-  Money20Regular,
+  ClipboardTaskListLtr20Regular,
+  DataTrending20Regular,
+  DocumentSearch20Regular,
   Open16Regular,
   SignOut20Regular,
 } from '@fluentui/react-icons'
@@ -65,7 +72,8 @@ import { supabase } from '../../lib/supabase'
  */
 
 type CheckName = ReturnCheckFinding['check']
-type View = 'overview' | CheckName
+type Group = 'acceptance' | 'register' | 'indicators'
+type View = 'overview' | Group
 type LoadState = { status: 'loading' } | { status: 'ready'; data: ReturnChecks } | { status: 'error'; message: string }
 type Sort = { sortColumn: TableColumnId | undefined; sortDirection: 'ascending' | 'descending' }
 
@@ -77,18 +85,99 @@ interface Row {
   name: string
   sector: string
   yearEnded: string | null
+  summary: string
+  /** The finding's key figure: a number to sort by, and how it's shown. */
+  value: number | null
+  shown: string | null
   due: string | null
   days: number
   registered: string | null
   returnYearEnded: string | null
   tier: number | null
   limit: number | null
+  /** Each year's tier limit, beside `spent` and `years`. */
+  limits: number[]
   spent: number[]
   years: string[]
 }
 
+/** One of the ten checks, numbered as in the handoff's catalogue: A acceptance, B register, I indicators. */
+interface CheckInfo {
+  name: CheckName
+  code: string
+  group: Group
+  title: string
+  /** What in the return it reads. */
+  reads: string
+  /** Heading of the key figure's column. */
+  figure: string
+  description: string
+  sort: Sort
+}
+
 /** Overdue returns this late or more are listed: earlier ones are often still being processed. */
 const LATE_DAYS = 60
+const byValue = (direction: Sort['sortDirection']): Sort => ({ sortColumn: 'value', sortDirection: direction })
+
+const CHECKS: CheckInfo[] = [
+  {
+    name: 'year_end_mismatch', code: 'A1', group: 'acceptance', title: 'Correct reporting year', reads: 'Balance date, year end',
+    figure: '', sort: { sortColumn: 'name', sortDirection: 'ascending' },
+    description: "The latest return should end on the registered balance date. Usually a changed balance date, or a return that used the wrong one. The right month with a different day is often a typo.",
+  },
+  {
+    name: 'tier_over_limit', code: 'A2', group: 'acceptance', title: 'Correct reporting standard', reads: 'Tier, expenses or payments',
+    figure: 'Against limit', sort: byValue('descending'),
+    description: "The XRB tier must suit the charity's size: over its limit for longer than the rules allow (two years; Tier 2, one), or moved down to a tier it's too big for. Each year is judged by the limits of its time: Tier 2 and 3 limits rose for years ending from 31 March 2024.",
+  },
+  {
+    name: 'overdue', code: 'B1', group: 'register', title: 'Filed on time', reads: 'Filing history, due dates',
+    figure: 'Days late', sort: { sortColumn: 'days', sortDirection: 'descending' },
+    description: `Returns more than ${LATE_DAYS} days late. Extensions aren't in the public data, and some charities file through a group the data doesn't record: the register page is the final word.`,
+  },
+  {
+    name: 'missing_year', code: 'B2', group: 'register', title: 'No missing years', reads: 'Filing history',
+    figure: 'Missing', sort: byValue('descending'),
+    description: "A year with no return between two that were filed. The charity may have filed as part of a group that year, or had its return withheld: neither shows in the public data.",
+  },
+  {
+    name: 'prior_year_mismatch', code: 'B3', group: 'register', title: "Last year's figures match", reads: 'Tier 4 comparatives',
+    figure: 'Difference', sort: byValue('descending'),
+    description: "A Tier 4 return repeats last year's income and payments beside this year's. These differ from what the charity reported last year by more than 5% and $1,000. Correcting last year's figures is a fair reason.",
+  },
+  {
+    name: 'negative_net_assets', code: 'I1', group: 'indicators', title: 'Liabilities exceed assets', reads: 'Assets, liabilities',
+    figure: 'Net assets', sort: byValue('ascending'),
+    description: 'Owes more than it owns, by $10,000 or more and at least a tenth of its income: a sign of financial strain.',
+  },
+  {
+    name: 'deficits', code: 'I2', group: 'indicators', title: 'Deficits three years running', reads: 'Income, expenses',
+    figure: 'Deficit, 3 years', sort: byValue('ascending'),
+    description: 'Spent more than it took in for three years running, each year by a fifth of its income or more, and $50,000 or more in all.',
+  },
+  {
+    name: 'big_swing', code: 'I3', group: 'indicators', title: 'Big change from last year', reads: 'Income, expenses',
+    figure: 'Change', sort: byValue('descending'),
+    description: 'Income or spending tripled, or fell to a third, by $500,000 or more. Often a one-off grant, bequest or project: check the return explains it.',
+  },
+  {
+    name: 'staff_pay_no_staff', code: 'I4', group: 'indicators', title: 'Staff pay but no staff', reads: 'Salaries, employees, paid hours',
+    figure: 'Staff pay', sort: byValue('descending'),
+    description: '$50,000 or more of staff pay, with no employees and no paid hours reported. One of the figures is likely wrong.',
+  },
+  {
+    name: 'repeated_figures', code: 'I5', group: 'indicators', title: 'Same figures as last year', reads: 'Income, expenses',
+    figure: 'Income / spending', sort: byValue('descending'),
+    description: "Income and spending the same as the year before, to the dollar: often last year's return copied forward.",
+  },
+]
+const CHECK = Object.fromEntries(CHECKS.map((c) => [c.name, c])) as Record<CheckName, CheckInfo>
+const GROUPS: Record<Group, { tab: string; title: string; foot: string; icon: ReactNode; tone?: 'danger' | 'warning'; first: CheckName }> = {
+  acceptance: { tab: 'Acceptance', title: 'Acceptance checks', foot: 'A1–A2: reporting year and tier', icon: <ClipboardTaskListLtr20Regular />, tone: 'warning', first: 'year_end_mismatch' },
+  register: { tab: 'Register', title: 'Register cross-checks', foot: "B1–B3: filing history, last year's figures", icon: <DocumentSearch20Regular />, tone: 'danger', first: 'overdue' },
+  indicators: { tab: 'Indicators', title: 'Standard indicators', foot: 'I1–I5: from the figures declared', icon: <DataTrending20Regular />, first: 'negative_net_assets' },
+}
+const GROUP_NAMES = Object.keys(GROUPS) as Group[]
 const PAGE = 100
 const NOT_ON_MAP = 'Not on the map'
 
@@ -191,6 +280,10 @@ const useStyles = makeStyles({
   },
   muted: { color: tokens.colorNeutralForeground3 },
   tabs: { flexWrap: 'wrap', borderBottom: `1px solid ${tokens.colorNeutralStroke2}` },
+  wide: { gridColumn: '1 / -1' },
+  subTabs: { flexWrap: 'wrap', rowGap: '4px' },
+  codeCol: { width: '72px' },
+  countCol: { width: '96px', textAlign: 'end', fontVariantNumeric: 'tabular-nums' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 30rem), 1fr))', alignItems: 'start', gap: '16px' },
   card: { display: 'grid', gap: '12px', alignContent: 'start', minWidth: 0 },
   cardHead: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' },
@@ -272,27 +365,39 @@ function Returns({ email }: { email: string | null }) {
         name: f.name,
         sector: byCc?.get(f.cc)?.sector ?? NOT_ON_MAP,
         yearEnded: f.year_ended,
+        summary: f.summary,
+        value: typeof d.value === 'number' ? d.value : null,
+        shown: typeof d.shown === 'string' ? d.shown : null,
         due: typeof d.due === 'string' ? d.due : null,
         days: num(d.days_overdue),
         registered: typeof d.registered_balance_date === 'string' ? d.registered_balance_date : null,
         returnYearEnded: typeof d.return_year_ended === 'string' ? d.return_year_ended : null,
         tier: d.tier === undefined ? null : num(d.tier),
         limit: d.limit === undefined ? null : num(d.limit),
+        limits: Array.isArray(d.limits) ? d.limits.map(num) : [],
         spent: Array.isArray(d.spent) ? d.spent.map(num) : [],
         years: Array.isArray(d.years) ? d.years.map((y) => String(y ?? '').slice(0, 4)) : [],
       }
     })
   }, [load, byCc])
 
-  const lists = useMemo(
-    () => ({
-      overdue: rows.filter((r) => r.check === 'overdue' && r.days > LATE_DAYS),
-      year_end_mismatch: rows.filter((r) => r.check === 'year_end_mismatch'),
-      tier_over_limit: rows.filter((r) => r.check === 'tier_over_limit'),
-    }),
-    [rows],
-  )
-  const overdueAll = useMemo(() => rows.filter((r) => r.check === 'overdue').length, [rows])
+  const lists = useMemo(() => {
+    const out = Object.fromEntries(CHECKS.map((c) => [c.name, [] as Row[]])) as Record<CheckName, Row[]>
+    for (const r of rows) if (r.check !== 'overdue' || r.days > LATE_DAYS) out[r.check]?.push(r)
+    return out
+  }, [rows])
+  const groupCount = (g: Group) => CHECKS.filter((c) => c.group === g).reduce((n, c) => n + lists[c.name].length, 0)
+  const flagged = useMemo(() => new Set(CHECKS.flatMap((c) => lists[c.name].map((r) => r.cc))).size, [lists])
+  const [picked, setPicked] = useState<Record<Group, CheckName>>(() => ({
+    acceptance: GROUPS.acceptance.first,
+    register: GROUPS.register.first,
+    indicators: GROUPS.indicators.first,
+  }))
+  const show = (check: CheckName) => {
+    const group = CHECK[check].group
+    setPicked((p) => ({ ...p, [group]: check }))
+    setView(group)
+  }
   const checkedAt = load.status === 'ready' && load.data.checked_at ? new Date(load.data.checked_at) : null
 
   return (
@@ -338,21 +443,25 @@ function Returns({ email }: { email: string | null }) {
                   Checked {longDate.format(checkedAt)}
                 </Badge>
               )}
+              <Badge appearance="tint" color="brand" size="large">
+                Public data, post-publication
+              </Badge>
             </div>
             {load.status === 'ready' && (
               <Body1 className={s.lead}>
-                {formatCount(lists.overdue.length)} charities are more than {LATE_DAYS} days late with an annual return,{' '}
-                {formatCount(lists.year_end_mismatch.length)} filed with a year end that isn't their registered balance date,
-                and {formatCount(lists.tier_over_limit.length)} have outgrown their reporting tier.
+                {formatCount(flagged)} charities have at least one finding from the ten checks that need nothing but the
+                register's public data: two acceptance checks, three register cross-checks and five standard indicators.
+                The checks that read the financial statements come later.
               </Body1>
             )}
           </div>
 
           <MessageBar intent="warning" layout="multiline">
             <MessageBarBody>
-              <MessageBarTitle>Review only.</MessageBarTitle>
-              These are automated checks of the Charities Register's public data, and some are wrong, for example where
-              a charity has an extension. Confirm on the charity's register page before acting.
+              <MessageBarTitle>Public data, after publication: review only.</MessageBarTitle>
+              The checks only see a return once the register publishes it, so returns still being processed, withheld
+              returns, extensions and group filings the data doesn't record are invisible, and some findings are wrong.
+              Confirm on the charity's register page before acting.
             </MessageBarBody>
           </MessageBar>
 
@@ -376,12 +485,10 @@ function Returns({ email }: { email: string | null }) {
           {load.status === 'ready' && (
             <>
               <section aria-label="Summary" className={s.kpis}>
-                <Kpi icon={<ClockAlarm20Regular />} tone="danger" label={`Returns more than ${LATE_DAYS} days late`}
-                  value={formatCount(lists.overdue.length)} foot={`of ${formatCount(overdueAll)} overdue in all`} />
-                <Kpi icon={<CalendarLtr20Regular />} tone="warning" label="Year end differs from register"
-                  value={formatCount(lists.year_end_mismatch.length)} foot="latest return vs registered balance date" />
-                <Kpi icon={<Money20Regular />} tone="warning" label="Outgrown their tier"
-                  value={formatCount(lists.tier_over_limit.length)} foot="three returns running over the limit" />
+                {GROUP_NAMES.map((g) => (
+                  <Kpi key={g} icon={GROUPS[g].icon} tone={GROUPS[g].tone} label={GROUPS[g].title}
+                    value={formatCount(groupCount(g))} foot={GROUPS[g].foot} />
+                ))}
                 <Kpi icon={<ArrowSync20Regular />} label="Last checked"
                   value={checkedAt ? dateFormat.format(checkedAt).replace(/ \d{4}$/, '') : '—'} foot="runs every Monday morning" />
               </section>
@@ -393,46 +500,17 @@ function Returns({ email }: { email: string | null }) {
                 aria-label="Views"
               >
                 <Tab value="overview">Overview</Tab>
-                <Tab value="overdue">
-                  Overdue <Badge appearance="tint" color="informative" shape="circular" size="small">{formatCount(lists.overdue.length)}</Badge>
-                </Tab>
-                <Tab value="year_end_mismatch">
-                  Year end <Badge appearance="tint" color="informative" shape="circular" size="small">{formatCount(lists.year_end_mismatch.length)}</Badge>
-                </Tab>
-                <Tab value="tier_over_limit">
-                  Tier limit <Badge appearance="tint" color="informative" shape="circular" size="small">{formatCount(lists.tier_over_limit.length)}</Badge>
-                </Tab>
+                {GROUP_NAMES.map((g) => (
+                  <Tab key={g} value={g}>
+                    {GROUPS[g].tab} <Badge appearance="tint" color="informative" shape="circular" size="small">{formatCount(groupCount(g))}</Badge>
+                  </Tab>
+                ))}
               </TabList>
 
-              {view === 'overview' && (
-                <Overview rows={rows} lists={lists} charities={charities} onView={setView} />
-              )}
-              {view === 'overdue' && (
-                <FindingsGrid
-                  key="overdue"
-                  title={`Returns more than ${LATE_DAYS} days late`}
-                  description="Extensions aren't in the public data, and some charities file through a group the data doesn't record: the register page is the final word."
-                  rows={lists.overdue}
-                  kind="overdue"
-                />
-              )}
-              {view === 'year_end_mismatch' && (
-                <FindingsGrid
-                  key="year_end_mismatch"
-                  title="Year end differs from the registered balance date"
-                  description="Usually a changed balance date, or a return that used the wrong one. The right month with a different day is often a typo."
-                  rows={lists.year_end_mismatch}
-                  kind="year_end_mismatch"
-                />
-              )}
-              {view === 'tier_over_limit' && (
-                <FindingsGrid
-                  key="tier_over_limit"
-                  title="Charities that have outgrown their tier"
-                  description="Filed under the same tier for three returns running while spending over its limit. Uses today's limits for every year."
-                  rows={lists.tier_over_limit}
-                  kind="tier_over_limit"
-                />
+              {view === 'overview' ? (
+                <Overview rows={rows} lists={lists} charities={charities} onView={show} />
+              ) : (
+                <GroupView group={view} lists={lists} check={picked[view]} onCheck={show} />
               )}
             </>
           )}
@@ -447,7 +525,7 @@ function Kpi({ icon, tone, label, value, foot }: { icon: ReactNode; tone?: 'dang
   return (
     <Card className={s.kpi}>
       <div className={s.kpiHead}>
-        <span className={`${s.icon} ${tone === 'danger' ? s.danger : tone === 'warning' ? s.warning : ''}`}>{icon}</span>
+        <span className={mergeClasses(s.icon, tone === 'danger' && s.danger, tone === 'warning' && s.warning)}>{icon}</span>
         <Body1>{label}</Body1>
       </div>
       <Text className={s.kpiValue}>{value}</Text>
@@ -476,7 +554,7 @@ function Overview({
   rows: Row[]
   lists: Record<CheckName, Row[]>
   charities: ReturnType<typeof useCharities>
-  onView: (v: View) => void
+  onView: (check: CheckName) => void
 }) {
   const s = useStyles()
   const overdue = useMemo(() => rows.filter((r) => r.check === 'overdue'), [rows])
@@ -505,6 +583,7 @@ function Overview({
 
   return (
     <div className={s.grid}>
+      <Catalogue lists={lists} onView={onView} />
       <ChartCard title="Overdue returns by how late" description="Due 6 months after the balance date. Grey: up to 60 days, often still being processed." onView={() => onView('overdue')}>
         <HBars
           rows={lateness}
@@ -538,7 +617,7 @@ function Overview({
       </ChartCard>
       <ChartCard
         title="Spending against the tier limit"
-        description="Last three returns, as a multiple of each charity's tier limit. Two years over are allowed (Tier 2: one) before moving up."
+        description="Each return's spending as a multiple of that year's tier limit: over it for longer than allowed, or moved down a tier while over the lower tier's limit."
         onView={() => onView('tier_over_limit')}
       >
         <div className={s.legend} aria-hidden="true">
@@ -550,6 +629,79 @@ function Overview({
         <TierDots rows={lists.tier_over_limit} />
       </ChartCard>
     </div>
+  )
+}
+
+function Catalogue({ lists, onView }: { lists: Record<CheckName, Row[]>; onView: (check: CheckName) => void }) {
+  const s = useStyles()
+  const narrow = useMediaQuery('(max-width: 640px)')
+  return (
+    <Card className={mergeClasses(s.card, s.wide)}>
+      <div className={s.cardTitle}>
+        <Subtitle2 as="h2">The ten checks</Subtitle2>
+        <Caption1 className={s.muted}>
+          Each reads only the register's public data feed. Statement completion and reconciliation need the PDFs and come
+          later.
+        </Caption1>
+      </div>
+      <div className={s.gridBox}>
+        <Table size="small" aria-label="The ten checks">
+          <TableHeader>
+            <TableRow>
+              <TableHeaderCell className={s.codeCol}>No.</TableHeaderCell>
+              <TableHeaderCell>Check</TableHeaderCell>
+              {!narrow && <TableHeaderCell>Group</TableHeaderCell>}
+              {!narrow && <TableHeaderCell>Reads</TableHeaderCell>}
+              <TableHeaderCell className={s.countCol}>Flagged</TableHeaderCell>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {CHECKS.map((c) => (
+              <TableRow key={c.name}>
+                <TableCell className={s.codeCol}>
+                  <Badge appearance="tint" color="brand" shape="rounded">
+                    {c.code}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Link onClick={() => onView(c.name)}>{c.title}</Link>
+                </TableCell>
+                {!narrow && <TableCell>{GROUPS[c.group].title}</TableCell>}
+                {!narrow && <TableCell>{c.reads}</TableCell>}
+                <TableCell className={s.countCol}>{formatCount(lists[c.name].length)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </Card>
+  )
+}
+
+function GroupView({ group, lists, check, onCheck }: {
+  group: Group
+  lists: Record<CheckName, Row[]>
+  check: CheckName
+  onCheck: (check: CheckName) => void
+}) {
+  const s = useStyles()
+  return (
+    <>
+      <TabList
+        appearance="subtle-circular"
+        className={s.subTabs}
+        selectedValue={check}
+        onTabSelect={(_, d) => onCheck(d.value as CheckName)}
+        aria-label={GROUPS[group].title}
+      >
+        {CHECKS.filter((c) => c.group === group).map((c) => (
+          <Tab key={c.name} value={c.name}>
+            {c.code} {c.title} <Badge appearance="tint" color="informative" shape="circular" size="small">{formatCount(lists[c.name].length)}</Badge>
+          </Tab>
+        ))}
+      </TabList>
+      <FindingsGrid key={check} info={CHECK[check]} rows={lists[check]} />
+    </>
   )
 }
 
@@ -692,8 +844,10 @@ function TierDots({ rows }: { rows: Row[] }) {
     () =>
       rows
         .map((r) => {
-          const limit = r.limit ?? 1
-          const pts = r.spent.map((spent, i) => ({ spent, year: r.years[i] ?? '', ratio: spent / limit, i }))
+          const pts = r.spent.map((spent, i) => {
+            const limit = r.limits[i] ?? r.limit ?? 1
+            return { spent, limit, year: r.years[i] ?? '', ratio: spent / limit, i }
+          })
           return { ...r, pts, max: Math.max(...pts.map((p) => p.ratio), 0) }
         })
         .sort((a, b) => b.max - a.max),
@@ -708,7 +862,7 @@ function TierDots({ rows }: { rows: Row[] }) {
   const xMax = Math.max(2, Math.ceil(Math.max(...items.map((r) => r.max), 2) * 1.05 * 2) / 2)
   const x = (v: number) => left + (v / xMax) * (width - left - right)
   const { ticks } = niceTicks(xMax, Math.max(2, Math.min(8, Math.floor((width - left) / 70))))
-  const opacity = [0.3, 0.6, 1]
+  const opacity = [1, 0.6, 0.3]
   return (
     <div ref={ref} className={s.chart} onMouseLeave={() => setTip(null)}>
       {box.width > 0 && (
@@ -740,7 +894,7 @@ function TierDots({ rows }: { rows: Row[] }) {
                 <line x1={x(lo)} x2={x(r.max)} y1={cy} y2={cy} strokeWidth={2} strokeLinecap="round" style={{ stroke: tokens.colorNeutralStroke1 }} />
                 {r.pts.map((p) => (
                   <circle key={p.i} cx={x(p.ratio)} cy={cy} r={5.5}
-                    style={{ fill: tokens.colorBrandForeground1, fillOpacity: opacity[p.i] ?? 1, stroke: tokens.colorBrandForeground1 }} />
+                    style={{ fill: tokens.colorBrandForeground1, fillOpacity: opacity[r.pts.length - 1 - p.i] ?? 0.3, stroke: tokens.colorBrandForeground1 }} />
                 ))}
                 <rect x={0} y={top + i * rowH} width={width} height={rowH} style={{ fill: 'transparent' }}
                   onMouseMove={(e) => {
@@ -748,7 +902,7 @@ function TierDots({ rows }: { rows: Row[] }) {
                     setTip({
                       x: e.clientX - b.left,
                       y: e.clientY - b.top,
-                      lines: [`${r.name} · Tier ${r.tier}`, `Limit ${money(r.limit ?? 0)}`, ...r.pts.map((p) => `${p.year}: ${money(p.spent)} (${p.ratio.toFixed(1)}× limit)`)],
+                      lines: [`${r.name} · Tier ${r.tier}`, ...r.pts.map((p) => `${p.year}: ${money(p.spent)}, ${p.ratio.toFixed(1)}× the ${money(p.limit)} limit`)],
                     })
                   }} />
               </g>
@@ -796,6 +950,18 @@ function columnsFor(kind: CheckName, narrow: boolean): TableColumnDefinition<Row
   })
   const cc = text('cc', 'CC number', (r) => r.cc)
   const sector = text('sector', 'Sector', (r) => r.sector)
+  const figure = createTableColumn<Row>({
+    columnId: 'value',
+    compare: (a, b) => (a.value ?? 0) - (b.value ?? 0),
+    renderHeaderCell: () => CHECK[kind].figure,
+    renderCell: (r) => <span style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{r.shown ?? '—'}</span>,
+  })
+  const finding = createTableColumn<Row>({
+    columnId: 'summary',
+    compare: (a, b) => a.summary.localeCompare(b.summary),
+    renderHeaderCell: () => 'What the check found',
+    renderCell: (r) => <span style={{ display: 'block', whiteSpace: 'normal', padding: '8px 0' }}>{r.summary}</span>,
+  })
   if (kind === 'overdue') {
     const days = createTableColumn<Row>({
       columnId: 'days',
@@ -816,6 +982,9 @@ function columnsFor(kind: CheckName, narrow: boolean): TableColumnDefinition<Row
     const returnEnd = date('returnYearEnded', "Return's year end", (r) => r.returnYearEnded)
     return narrow ? [name, registered, returnEnd] : [name, cc, sector, registered, returnEnd]
   }
+  if (kind !== 'tier_over_limit') {
+    return narrow ? [name, figure] : [name, cc, figure, finding]
+  }
   const tier = createTableColumn<Row>({
     columnId: 'tier',
     compare: (a, b) => (a.tier ?? 0) - (b.tier ?? 0),
@@ -826,32 +995,16 @@ function columnsFor(kind: CheckName, narrow: boolean): TableColumnDefinition<Row
       </Badge>
     ),
   })
-  const spent = createTableColumn<Row>({
-    columnId: 'spent',
-    compare: (a, b) => (a.spent.at(-1) ?? 0) - (b.spent.at(-1) ?? 0),
-    renderHeaderCell: () => 'Spent, latest year',
-    renderCell: (r) => `${money(r.spent.at(-1) ?? 0)} (${r.years.at(-1) ?? ''})`,
-  })
-  const limit = createTableColumn<Row>({
-    columnId: 'limit',
-    compare: (a, b) => (a.limit ?? 0) - (b.limit ?? 0),
-    renderHeaderCell: () => 'Tier limit',
-    renderCell: (r) => money(r.limit ?? 0),
-  })
-  return narrow ? [name, tier, spent] : [name, cc, tier, spent, limit]
+  return narrow ? [name, tier, figure] : [name, cc, tier, figure, finding]
 }
 
-const DEFAULT_SORT: Record<CheckName, Sort> = {
-  overdue: { sortColumn: 'days', sortDirection: 'descending' },
-  year_end_mismatch: { sortColumn: 'name', sortDirection: 'ascending' },
-  tier_over_limit: { sortColumn: 'spent', sortDirection: 'descending' },
-}
-
-function FindingsGrid({ title, description, rows, kind }: { title: string; description: string; rows: Row[]; kind: CheckName }) {
+function FindingsGrid({ info, rows }: { info: CheckInfo; rows: Row[] }) {
   const s = useStyles()
   const narrow = useMediaQuery('(max-width: 640px)')
   const [query, setQuery] = useState('')
-  const [sort, setSort] = useState<Sort>(DEFAULT_SORT[kind])
+  const [sort, setSort] = useState<Sort>(info.sort)
+  const kind = info.name
+  const title = `${info.code} · ${info.title}`
   const [shown, setShown] = useState(PAGE)
   const columns = useMemo(() => columnsFor(kind, narrow), [kind, narrow])
 
@@ -869,7 +1022,7 @@ function FindingsGrid({ title, description, rows, kind }: { title: string; descr
     <Card className={s.card}>
       <div className={s.cardTitle}>
         <Subtitle2 as="h2">{title}</Subtitle2>
-        <Caption1 className={s.muted}>{description}</Caption1>
+        <Caption1 className={s.muted}>{info.description}</Caption1>
       </div>
       <div className={s.toolbar}>
         <SearchBox
@@ -897,9 +1050,12 @@ function FindingsGrid({ title, description, rows, kind }: { title: string; descr
           focusMode="composite"
           resizableColumns={!narrow}
           columnSizingOptions={{
-            name: { defaultWidth: 340, minWidth: 180, idealWidth: 340 },
+            name: { defaultWidth: 300, minWidth: 180, idealWidth: 300 },
             cc: { defaultWidth: 110, minWidth: 90 },
-            sector: { defaultWidth: 220, minWidth: 120 },
+            sector: { defaultWidth: 180, minWidth: 120 },
+            tier: { defaultWidth: 90, minWidth: 80 },
+            value: { defaultWidth: 150, minWidth: 110 },
+            summary: { defaultWidth: 620, minWidth: 260, idealWidth: 620 },
           }}
         >
           <DataGridHeader>

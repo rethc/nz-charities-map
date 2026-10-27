@@ -43,14 +43,22 @@ the current site live. Tests: `npm run test:pages`.
 
 `scripts/return_checks.py` reads the Charities Register's public data feed each week (the
 "Annual return checks" workflow) and lists, at `/admin/returns`, charities whose annual returns
-are worth a closer look:
+are worth a closer look. These are the ten checks that need nothing but the feed (checks that
+read the financial statement PDFs come later):
 
-* **Overdue**: the next return was due 6 months after the balance date and none has been filed.
-  The public feed has no extensions, so a charity with one can appear; the page shows returns
-  more than 60 days late by default.
-* **Year end differs**: the latest return's year end isn't the registered balance date.
-* **Over tier limit**: the same tier for three returns running while over its limit (rules on
-  [charities.govt.nz](https://www.charities.govt.nz/annual-reporting/which-tier-will-i-use)).
+* **Acceptance.** A1: the latest return's year end isn't the registered balance date. A2: the
+  tier doesn't suit the charity's size: over its limit for longer than the
+  [rules](https://www.charities.govt.nz/annual-reporting/which-tier-will-i-use) allow, or moved
+  down to a tier it's too big for, judged by each year's own limits.
+* **Register.** B1: the next return is overdue (the page lists those more than 60 days late; the
+  feed has no extensions). B2: a year is missing between two returns. B3: a Tier 4 return's
+  "last year" figures differ from last year's own return.
+* **Indicators.** I1: liabilities exceed assets. I2: three deficits in a row. I3: income or
+  spending tripled or fell to a third. I4: staff pay but no staff. I5: the same income and
+  spending as the year before.
+
+Every result is public data read after publication: returns being processed, withheld returns
+and group filings the feed doesn't record are invisible, so some findings are wrong.
 
 The results never reach the public site: an automated check can be wrong. Setup: run
 `supabase/migrations/20261027010000_return_checks.sql`, then the workflow once. Try it without
