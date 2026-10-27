@@ -57,13 +57,13 @@ jobs:
           fi
           exit $missing
 
-      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: astral-sh/setup-uv@v10.3.2
         with:
           enable-cache: true
           cache-dependency-glob: scripts/sync_charities.py
 
       - name: Unit tests
-        run: uvx --python 3.13 --with httpx pytest scripts/tests -q
+        run: uvx --python 3.14 --with httpx pytest scripts/tests -q
 
       - name: Sync and geocode
         env:
@@ -71,7 +71,7 @@ jobs:
           MAX_GEOCODE: ${{ inputs.max_geocode || 3000 }}
           RETRY_REVIEW: ${{ inputs.retry_review && '--retry-review' || '' }}
         run: |
-          uv run --python 3.13 scripts/sync_charities.py \
+          uv run --python 3.14 scripts/sync_charities.py \
             --mode "$MODE" \
             --max-geocode "$MAX_GEOCODE" \
             --time-budget-minutes 150 \

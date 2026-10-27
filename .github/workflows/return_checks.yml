@@ -37,13 +37,13 @@ jobs:
           done
           exit $missing
 
-      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: astral-sh/setup-uv@v10.3.2
         with:
           enable-cache: true
           cache-dependency-glob: scripts/return_checks.py
 
       - name: Unit tests
-        run: uvx --python 3.13 --with httpx pytest scripts/tests -q
+        run: uvx --python 3.14 --with httpx pytest scripts/tests -q
 
       - name: Check the returns
-        run: uv run --python 3.13 scripts/return_checks.py
+        run: uv run --python 3.14 scripts/return_checks.py
