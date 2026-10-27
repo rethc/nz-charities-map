@@ -82,7 +82,8 @@ const LAYER = {
   labels: 'charity-labels',
   stackCount: 'charity-stack-count',
 } as const
-const CLICKABLE = [LAYER.clusters, LAYER.points]
+/** A charity's name card opens it too: the dot alone is a small target. */
+const CLICKABLE = [LAYER.clusters, LAYER.points, LAYER.labels]
 
 /** Clusters, shared-address stacks and charity names: the dark ink of the site's header bars. */
 const INK = '#1a242c'
@@ -290,7 +291,8 @@ function addCharityLayers(map: MapLibreMap, selectedSpots: readonly number[]) {
       'icon-text-fit': 'both',
       'icon-text-fit-padding': [1, 2, 1, 2],
     },
-    paint: { 'text-color': INK },
+    // Brand teal-blue under the pointer, like a link: the card can be clicked.
+    paint: { 'text-color': ['case', isHovered, '#007ea8', INK] },
   })
 
   // Topmost, so it is placed first: the count always shows and names keep clear of the badge.
@@ -479,7 +481,11 @@ export function CharityMap({ data, selected, popup, initialZoom, fitPadding, onP
         .sort((a, b) => Math.hypot(a.p.x - x, a.p.y - y) - Math.hypot(b.p.x - x, b.p.y - y))
       const nearest = points[0]
       if (!nearest) {
-        latest.current.onPick({ type: 'none' })
+        // No dot under the pointer: a name card opens its charity, as its dot would.
+        const label = hits.find((f) => f.layer.id === LAYER.labels)
+        latest.current.onPick(
+          label ? { type: 'charity', cc: String(label.properties.cc), lonLat: pointCoords(label) } : { type: 'none' },
+        )
         return
       }
       const ccs = [
@@ -496,7 +502,8 @@ export function CharityMap({ data, selected, popup, initialZoom, fitPadding, onP
       )
     }
 
-    // Dots and clusters respond to the pointer (mouse only: a tap would leave the state stuck on).
+    // Dots, clusters and name cards respond to the pointer (mouse only: a tap would leave the state stuck on).
+    // A card and its dot are one feature, so hovering either lights up both.
     const canvas = map.getCanvas()
     let hovered: string | number | undefined
     function setHovered(id: string | number | undefined) {
