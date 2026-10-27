@@ -16,8 +16,20 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadEnv } from 'vite'
 import { loadSourceData } from './fetch.mts'
+import { loadAreas } from './areas.mts'
 import { buildSite, type Town } from './model.mts'
-import { browsePage, charityPage, esc, paths, sectorPage, townPage, townSectorPage, type PageContext } from './render.mts'
+import {
+  browsePage,
+  charityPage,
+  districtPage,
+  esc,
+  paths,
+  regionPage,
+  sectorPage,
+  townPage,
+  townSectorPage,
+  type PageContext,
+} from './render.mts'
 
 const root = fileURLToPath(new URL('../..', import.meta.url))
 const dist = path.join(root, 'dist')
@@ -25,7 +37,7 @@ const DEFAULT_SITE_URL = 'https://charities.co.nz'
 /** Addresses per sitemap file; the limit is 50,000. */
 const SITEMAP_CHUNK = 25_000
 /** Folders this script owns in dist/, cleared before each run. */
-const OUTPUT_DIRS = ['browse', 'charity', 'in', 'sector', 'sitemaps']
+const OUTPUT_DIRS = ['browse', 'charity', 'in', 'region', 'sector', 'sitemaps']
 
 /** "/charity/CC12345/" → dist/charity/CC12345/index.html, which Netlify serves at that address. */
 function writePage(urlPath: string, html: string) {
@@ -110,7 +122,9 @@ async function main() {
   console.log(`Static pages: loading charities from ${supabaseUrl} …`)
   const source = await loadSourceData(supabaseUrl, key)
   if (source.charities.length === 0) throw new Error('Supabase returned no charities.')
-  const site = buildSite(source)
+  const areas = loadAreas()
+  if (!areas) console.warn('  scripts/seo/areas.json is missing, so there are no region pages. Run `npm run seo:areas`.')
+  const site = buildSite(source, areas)
 
   for (const dir of OUTPUT_DIRS) fs.rmSync(path.join(dist, dir), { recursive: true, force: true })
   const indexHtml = fs.readFileSync(indexPath, 'utf8')
@@ -121,6 +135,16 @@ async function main() {
 
   const directory = ['/', paths.browse]
   writePage(paths.browse, browsePage(site, ctx))
+  let districtPages = 0
+  for (const region of site.regions) {
+    writePage(paths.region(region), regionPage(site, ctx, region))
+    directory.push(paths.region(region))
+    for (const district of region.districts) {
+      writePage(paths.district(district), districtPage(site, ctx, district))
+      directory.push(paths.district(district))
+      districtPages++
+    }
+  }
   let sectorPages = 0
   for (const sector of site.sectors) {
     if (!sector.page) continue
@@ -149,7 +173,8 @@ async function main() {
 
   const fmt = new Intl.NumberFormat('en-NZ').format
   console.log(
-    `Static pages: ${fmt(charityPaths.length)} charities, ${fmt(site.towns.length)} towns ` +
+    `Static pages: ${fmt(charityPaths.length)} charities, ${fmt(site.regions.length)} regions, ` +
+      `${fmt(districtPages)} districts, ${fmt(site.towns.length)} towns ` +
       `(+${fmt(townSectorPages)} town sector pages), ${fmt(sectorPages)} sectors, ` +
       `${fmt(directory.length + charityPaths.length)} addresses in the sitemap. ` +
       `${((Date.now() - started) / 1000).toFixed(1)} s.`,

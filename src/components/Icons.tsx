@@ -73,6 +73,13 @@ export const CheckIcon = (p: IconProps) => (
   </Svg>
 )
 
+export const ListIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M9 6h11M9 12h11M9 18h11" />
+    <path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01" strokeWidth={3} />
+  </Svg>
+)
+
 export const LayersIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="m12 3 9 5-9 5-9-5 9-5z" />

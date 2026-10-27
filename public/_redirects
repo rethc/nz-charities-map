@@ -1,6 +1,6 @@
 # Netlify reads this file from the publish directory (Vite copies public/ into dist/).
 # Rules match top to bottom; the first match wins. Real files in dist/ always win over a rule
-# (the map at /, and the pages scripts/seo/build-pages.mts writes: /browse/, /charity/…, /in/…, /sector/…).
+# (the map at /, and the pages scripts/seo/build-pages.mts writes: /browse/, /charity/…, /in/…, /region/…, /sector/…).
 
 # 1. API: /api/geocode → netlify/functions/geocode.mts
 /api/*    /.netlify/functions/:splat    200
@@ -13,6 +13,7 @@
 # 3. The top of each folder of static pages goes to the browse page.
 /charity  /browse/    301
 /in       /browse/    301
+/region   /browse/    301
 /sector   /browse/    301
 
 # 4. Anything else: the app's "There's no page at this address" screen, sent with a real 404

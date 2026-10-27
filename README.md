@@ -28,8 +28,9 @@ The map runs in JavaScript, so search engines and AI crawlers can't read it on t
 as the map and writes plain HTML pages into `dist/`:
 
 * `/charity/CC12345/`: one page per charity, with its purpose, address and nearby charities
+* `/region/wellington/` and `/region/wellington/lower-hutt-city/`: Stats NZ's 16 regions (plus the Chatham Islands) and their districts and cities, with Auckland split into its 21 local board areas. Each charity is placed by its pin, using the official boundaries saved in `scripts/seo/areas.json` (© Stats NZ, CC BY 4.0). Stats NZ updates them each year: run `npm run seo:areas` and commit the new file.
 * `/in/nelson/`: one page per town with 3 or more charities, listing all of them by sector. "Wellington CBD", "Auckland Central" and the like count as the town itself (see `townKey` in `scripts/seo/model.mts`). Towns with more than 400 also get one page per sector (`/in/auckland/health/`)
-* `/sector/health/` and `/browse/`: the index pages
+* `/sector/health/` and `/browse/`: the index pages (the map's header links to `/browse/`)
 * `/sitemap.xml`, plus a `Sitemap:` line added to `robots.txt`
 
 The pages are rebuilt on every deploy. To refresh them weekly between code changes, create a
@@ -42,6 +43,7 @@ the current site live. Tests: `npm run test:pages`.
 
 * **Charity data:** © Charities Services, licensed under CC BY 3.0 NZ.
 * **Address points:** from LINZ, licensed under CC BY 4.0.
+* **Region and district boundaries:** © Stats NZ – Tatauranga Aotearoa, licensed under CC BY 4.0.
 * **Basemap:** OpenFreeMap, using © OpenMapTiles and © OpenStreetMap contributors data.
 
 The map shows all of these credits in its attribution control.

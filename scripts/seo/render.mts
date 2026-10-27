@@ -4,7 +4,18 @@
  * Styles live in browse.css; the pages run no JavaScript of their own.
  */
 import type { Charity } from './fetch.mts'
-import { byName, capitalise, foldKey, townName, type Near, type Sector, type Site, type Town } from './model.mts'
+import {
+  byName,
+  capitalise,
+  foldKey,
+  townName,
+  type District,
+  type Near,
+  type Region,
+  type Sector,
+  type Site,
+  type Town,
+} from './model.mts'
 
 export interface PageContext {
   /** The live site's address, e.g. https://charities.co.nz, for canonical links and the sitemap. */
@@ -22,7 +33,12 @@ export const paths = {
   town: (town: Town) => `/in/${town.slug}/`,
   townSector: (town: Town, sector: Sector) => `/in/${town.slug}/${sector.slug}/`,
   sector: (sector: Sector) => `/sector/${sector.slug}/`,
+  region: (region: Region) => `/region/${region.slug}/`,
+  district: (district: District) => `/region/${district.region.slug}/${district.slug}/`,
 }
+
+/** "the Wellington Region", but "the Chatham Islands" too: for "Charities in …". */
+const theRegion = (region: Region) => `the ${region.name}`
 
 /**
  * Where to send someone for a town's charities in one sector, from another page: their own page
@@ -153,7 +169,7 @@ ${crumbs}${page.main}
 </main>
 <footer class="foot">
 <div class="foot-in">
-<p>Charity details come from the <a href="https://register.charities.govt.nz/">Charities Register</a>, © Charities Services, licensed under <a href="https://creativecommons.org/licenses/by/3.0/nz/">CC BY 3.0 NZ</a>. Locations are matched to address points from <a href="https://www.linz.govt.nz/">LINZ</a> (CC BY 4.0). NZ Charities Map is an independent site, not part of Charities Services.</p>
+<p>Charity details come from the <a href="https://register.charities.govt.nz/">Charities Register</a>, © Charities Services, licensed under <a href="https://creativecommons.org/licenses/by/3.0/nz/">CC BY 3.0 NZ</a>. Locations are matched to address points from <a href="https://www.linz.govt.nz/">LINZ</a> (CC BY 4.0). Region and district boundaries are from <a href="https://www.stats.govt.nz/">Stats NZ</a> (CC BY 4.0). NZ Charities Map is an independent site, not part of Charities Services.</p>
 <p><a href="/">Map</a> · <a href="${paths.browse}">Browse by town and sector</a></p>
 </div>
 </footer>
@@ -187,6 +203,14 @@ function suburbIn(town: Town, c: Charity): string | null {
   return null
 }
 
+/** The trail down to a region and district: Browse › Wellington Region › Lower Hutt City. */
+function areaCrumbs(region: Region | null | undefined, district?: District | null): Crumb[] {
+  const crumbs: Crumb[] = [{ name: 'Browse', path: paths.browse }]
+  if (region) crumbs.push({ name: region.name, path: paths.region(region) })
+  if (district) crumbs.push({ name: district.name, path: paths.district(district) })
+  return crumbs
+}
+
 const sectorChip = (sector: Sector, href: string, count: number) =>
   `<li><a href="${esc(href)}">${dot(sector.colour)}${esc(sector.name)}<span class="n">${n(count)}</span></a></li>`
 
@@ -213,9 +237,14 @@ export function charityPage(site: Site, ctx: PageContext, c: Charity): string {
         160,
       )
 
-  const crumbs: Crumb[] = [{ name: 'Browse', path: paths.browse }]
-  if (town) crumbs.push({ name: town.name, path: paths.town(town) })
-  else if (sector.page) crumbs.push({ name: sector.name, path: paths.sector(sector) })
+  const district = site.districtOf.get(c.cc) ?? null
+  let crumbs: Crumb[]
+  if (district) crumbs = areaCrumbs(district.region, district)
+  else {
+    crumbs = [{ name: 'Browse', path: paths.browse }]
+    if (town) crumbs.push({ name: town.name, path: paths.town(town) })
+    else if (sector.page) crumbs.push({ name: sector.name, path: paths.sector(sector) })
+  }
   crumbs.push({ name: c.name })
 
   const sectorText = sector.page ? `<a href="${paths.sector(sector)}">${esc(sector.name)}</a>` : esc(sector.name)
@@ -270,6 +299,10 @@ ${rest > 0 ? `<p class="more"><a href="${esc(mapHref({ cc: c.cc }))}">See all ${
   } else if (sector.page) {
     more.push(`<a href="${paths.sector(sector)}">${esc(capitalise(sector.plural))} in New Zealand</a>`)
   }
+  // The district, unless it's just the town again (Lower Hutt and Lower Hutt City).
+  if (district && !(town && foldKey(district.name).startsWith(town.key))) {
+    more.push(`<a href="${paths.district(district)}">All charities in ${esc(district.name)}</a>`)
+  }
   if (more.length) sections.push(`<p class="more">${more.join('<span class="sep" aria-hidden="true">·</span>')}</p>`)
 
   const org: Record<string, unknown> = {
@@ -288,6 +321,7 @@ ${rest > 0 ? `<p class="more"><a href="${esc(mapHref({ cc: c.cc }))}">See all ${
       ...(c.street && { streetAddress: c.street }),
       ...((c.city ?? c.suburb) && { addressLocality: c.city ?? c.suburb }),
       ...(c.postcode && { postalCode: c.postcode }),
+      ...(district && { addressRegion: district.region.name.replace(/ Region$/, '') }),
       addressCountry: 'NZ',
     }
   }
@@ -365,9 +399,15 @@ ${lists}`
       `${n(total)} registered charities in ${town.name}, New Zealand, by sector (${topSectors} and more), with their addresses and what they do. Find them on the map.`,
       160,
     ),
-    crumbs: [{ name: 'Browse', path: paths.browse }, { name: town.name }],
+    crumbs: [...areaCrumbs(town.home?.region, townDistrict(town)), { name: town.name }],
     main,
   })
+}
+
+/** The district in a town's trail, unless it's just the town again ("Lower Hutt City" above "Lower Hutt"). */
+function townDistrict(town: Town): District | null {
+  const district = town.home?.district ?? null
+  return district && !foldKey(district.name).startsWith(town.key) ? district : null
 }
 
 export function townSectorPage(ctx: PageContext, town: Town, sector: Sector, charities: Charity[]): string {
@@ -401,7 +441,7 @@ export function townSectorPage(ctx: PageContext, town: Town, sector: Sector, cha
       160,
     ),
     crumbs: [
-      { name: 'Browse', path: paths.browse },
+      ...areaCrumbs(town.home?.region, townDistrict(town)),
       { name: town.name, path: paths.town(town) },
       { name: sector.name },
     ],
@@ -460,9 +500,132 @@ ${
   })
 }
 
+// ── Regions and districts ────────────────────────────────────────────────────
+
+/** A card linking to a region or district, with what's inside it underneath. */
+const card = (href: string, title: string, count: number, inside: string[]) =>
+  `<li><a class="tile" href="${esc(href)}"><span class="tile-title">${esc(title)}</span><span class="n">${n(count)} ${count === 1 ? 'charity' : 'charities'}</span>${
+    inside.length ? `<span class="tile-sub">${esc(inside.join(' · '))}</span>` : ''
+  }</a></li>`
+
+/** The biggest few names in an area, for a card: "Lower Hutt City, Wellington City, Porirua City and 5 more". */
+function biggest(names: Array<{ name: string; count: number }>, shown = 3): string[] {
+  const top = names.toSorted((a, b) => b.count - a.count).slice(0, shown).map((x) => x.name)
+  return names.length > shown ? [...top, `${names.length - shown} more`] : top
+}
+
+const areaWord = (region: Region, count: number) =>
+  region.districts.some((d) => d.localBoard)
+    ? count === 1 ? 'local board area' : 'local board areas'
+    : count === 1 ? 'district' : 'districts and cities'
+
+export function regionPage(site: Site, ctx: PageContext, region: Region): string {
+  const total = region.charities.length
+  const districts = region.districts
+  const towns = site.towns.filter((t) => t.home?.region === region)
+  const cards = districts
+    .map((d) => {
+      const named = d.places.flatMap((p) => (p.name ? [{ name: p.name, count: p.count }] : []))
+      return card(paths.district(d), d.name, d.charities.length, biggest(named))
+    })
+    .join('')
+
+  const main = `<header class="head">
+<h1>Charities in ${esc(theRegion(region))}</h1>
+<p class="lead">${n(total)} registered charities in ${esc(theRegion(region))} are on the map, in ${n(districts.length)} ${areaWord(region, districts.length)}. Choose one to see all its charities.</p>
+</header>
+<section class="block" aria-labelledby="districts">
+<h2 id="districts">${capitalise(areaWord(region, 2))}</h2>
+<ul class="tiles">${cards}</ul>
+</section>
+${
+  towns.length
+    ? `<section class="block" aria-labelledby="towns">
+<h2 id="towns">Towns and cities</h2>
+<ul class="list towns">${towns
+        .map((t) => `<li><a href="${paths.town(t)}">${esc(t.name)}</a> <span class="n">${n(t.charities.length)}</span></li>`)
+        .join('')}</ul>
+</section>`
+    : ''
+}`
+
+  return layout(ctx, {
+    path: paths.region(region),
+    title: `Charities in ${theRegion(region)}`,
+    description: clip(
+      `${n(total)} registered charities in ${theRegion(region)}, New Zealand, in ${biggest(districts.map((d) => ({ name: d.name, count: d.charities.length })), 3).join(', ')}. What each one does and where it is.`,
+      160,
+    ),
+    crumbs: areaCrumbs(region),
+    main,
+  })
+}
+
+/** Where a charity is, under its name in a district's list: "Petone, Lower Hutt". */
+function whereIn(site: Site, c: Charity): string | null {
+  const place = placeLabel(site, c)
+  const suburb = c.suburb && !/^\d/.test(c.suburb) && (!place || foldKey(c.suburb) !== foldKey(place)) ? c.suburb : null
+  return [suburb, place].filter(Boolean).join(', ') || null
+}
+
+export function districtPage(site: Site, ctx: PageContext, district: District): string {
+  const total = district.charities.length
+  const placeChips = district.places
+    .map((p) =>
+      p.town
+        ? `<li><a href="${paths.town(p.town)}">${esc(p.town.name)}<span class="n">${n(p.count)}</span></a></li>`
+        : `<li><span>${esc(p.name ?? 'No town listed')}<span class="n">${n(p.count)}</span></span></li>`,
+    )
+    .join('')
+  const sectorChips = district.sectors
+    .map(({ sector, charities }) => sectorChip(sector, `#${sector.slug}`, charities.length))
+    .join('')
+  const lists = district.sectors
+    .map(
+      ({ sector, charities }) => `<section class="block" id="${sector.slug}" aria-labelledby="h-${sector.slug}">
+<h2 id="h-${sector.slug}">${dot(sector.colour)}${esc(`${capitalise(sector.plural)} in ${district.name}`)} <span class="count">${n(charities.length)}</span></h2>
+<ul class="list cols">${charities.map((c) => listItem(c, whereIn(site, c))).join('')}</ul>
+</section>`,
+    )
+    .join('\n')
+  const kind = district.localBoard ? `Local board area in ${district.region.name}` : district.region.name
+
+  const main = `<header class="head">
+<p class="kicker">${esc(kind)}</p>
+<h1>Charities in ${esc(district.name)}</h1>
+<p class="lead">${n(total)} registered ${total === 1 ? 'charity' : 'charities'} in ${esc(district.name)} ${total === 1 ? 'is' : 'are'} on the map. Here they all are, by sector.</p>
+</header>
+<section class="block" aria-labelledby="places">
+<h2 id="places">Towns and places</h2>
+<ul class="chips">${placeChips}</ul>
+</section>
+<section class="block" aria-labelledby="sectors">
+<h2 id="sectors">Sectors</h2>
+<ul class="chips">${sectorChips}</ul>
+</section>
+${lists}`
+
+  return layout(ctx, {
+    path: paths.district(district),
+    // "Howick" is a town and a local board area: their pages need different titles.
+    title: district.localBoard ? `Charities in the ${district.name} local board area` : `Charities in ${district.name}`,
+    description: clip(
+      `${n(total)} registered charities in ${district.name}${district.localBoard ? ', Auckland' : ''}, by sector, with what each one does and where it is. From the Charities Register.`,
+      160,
+    ),
+    crumbs: areaCrumbs(district.region, district),
+    main,
+  })
+}
+
 // ── Browse ───────────────────────────────────────────────────────────────────
 
 export function browsePage(site: Site, ctx: PageContext): string {
+  const regionCards = site.regions
+    .map((r) =>
+      card(paths.region(r), r.name, r.charities.length, biggest(r.districts.map((d) => ({ name: d.name, count: d.charities.length })), 2)),
+    )
+    .join('')
   const sectors = site.sectors
     .filter((s) => s.page)
     .map((s) => sectorChip(s, paths.sector(s), s.charities.length))
@@ -480,15 +643,23 @@ export function browsePage(site: Site, ctx: PageContext): string {
 
   const main = `<header class="head">
 <h1>Browse charities in New Zealand</h1>
-<p class="lead">${n(site.charities.length)} registered charities are on the map. Find them by sector or by town, with what each one does and where it is. Details come from the Charities Register${esc(synced)}.</p>
+<p class="lead">${n(site.charities.length)} registered charities are on the map. Find them by region, sector or town, with what each one does and where it is. Details come from the Charities Register${esc(synced)}.</p>
 <div class="actions"><a class="btn btn-primary" href="/">${PIN}Open the map</a></div>
 </header>
+${
+  regionCards
+    ? `<section class="block" aria-labelledby="by-region">
+<h2 id="by-region">By region</h2>
+<ul class="tiles">${regionCards}</ul>
+</section>`
+    : ''
+}
 <section class="block" aria-labelledby="by-sector">
 <h2 id="by-sector">By sector</h2>
 <ul class="chips">${sectors}</ul>
 </section>
 <section class="block" aria-labelledby="by-town">
-<h2 id="by-town">By town or city</h2>
+<h2 id="by-town">All towns and cities</h2>
 <nav class="az" aria-label="Towns by first letter"><ul>${letters
     .map((l) => `<li><a href="#letter-${l === '#' ? 'other' : l.toLowerCase()}">${l}</a></li>`)
     .join('')}</ul></nav>
@@ -505,9 +676,9 @@ ${letters
 
   return layout(ctx, {
     path: paths.browse,
-    title: 'Browse charities by town and sector',
+    title: 'Browse charities by region, town and sector',
     description: clip(
-      `All ${n(site.charities.length)} registered charities on the NZ Charities Map, by sector and by town or city, with what each one does and where it is.`,
+      `All ${n(site.charities.length)} registered charities on the NZ Charities Map, by region, town and sector, with what each one does and where it is.`,
       160,
     ),
     crumbs: [{ name: 'Browse' }],

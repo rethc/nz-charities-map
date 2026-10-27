@@ -5,9 +5,18 @@
  */
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { indexAreas, type AreasFile } from '../scripts/seo/areas.mts'
 import { toCharity, type Charity, type Row } from '../scripts/seo/fetch.mts'
-import { buildSite, SECTOR_PAGES_OVER, sectorPlural, slugify, townName } from '../scripts/seo/model.mts'
-import { browsePage, charityPage, clip, formatDistance, townPage } from '../scripts/seo/render.mts'
+import { buildSite, regionName, SECTOR_PAGES_OVER, sectorPlural, slugify, townName } from '../scripts/seo/model.mts'
+import {
+  browsePage,
+  charityPage,
+  clip,
+  districtPage,
+  formatDistance,
+  regionPage,
+  townPage,
+} from '../scripts/seo/render.mts'
 
 const ctx = { siteUrl: 'https://example.test', analytics: '' }
 
@@ -207,4 +216,100 @@ test('helpers: distances and short descriptions', () => {
   assert.equal(formatDistance(23_400), '23 km')
   assert.equal(clip('short', 20), 'short')
   assert.equal(clip('one two three four five six', 16), 'one two three…')
+})
+
+// Areas: squares standing in for Stats NZ's outlines, stored the way refresh-areas.mts writes them.
+function encodeRing(ring: Array<[number, number]>, scale = 100_000): number[] {
+  let px = 0
+  let py = 0
+  return ring.flatMap(([lon, lat]) => {
+    const x = Math.round(lon * scale)
+    const y = Math.round(lat * scale)
+    const step = [x - px, y - py]
+    px = x
+    py = y
+    return step
+  })
+}
+const square = (x0: number, y0: number, x1: number, y1: number) =>
+  encodeRing([[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]])
+
+const testAreas: AreasFile = {
+  source: 'test',
+  licence: 'test',
+  fetched: '2026-01-01',
+  scale: 100_000,
+  regions: [
+    { code: '09', name: 'Wellington Region' },
+    { code: '02', name: 'Auckland' },
+  ],
+  districts: [
+    { code: '04700', name: 'Wellington City', region: '09', polygons: [[square(174.7, -41.4, 174.8, -41.2)]] },
+    { code: '04600', name: 'Lower Hutt City', region: '09', polygons: [[square(174.8, -41.4, 175.0, -41.1)]] },
+    // A district with a large hole in it, like a lake.
+    { code: '04800', name: 'Masterton District', region: '09', polygons: [[square(175.5, -41.1, 175.9, -40.7), square(175.6, -41.0, 175.8, -40.8)]] },
+    { code: '07610', name: 'Waitematā Local Board Area', region: '02', polygons: [[square(174.7, -36.9, 174.8, -36.8)]] },
+  ],
+}
+
+test('areas: a pin goes to the district it is in, or the nearest one just outside', () => {
+  const areas = indexAreas(testAreas)
+  assert.equal(areas.locate(174.75, -41.3)?.official, 'Wellington City')
+  assert.equal(areas.locate(174.9, -41.3)?.official, 'Lower Hutt City')
+  assert.equal(areas.locate(175.005, -41.3)?.official, 'Lower Hutt City', 'just off the coast')
+  assert.equal(areas.locate(175.7, -40.9), null, 'in the middle of the hole')
+  assert.equal(areas.locate(175.55, -40.9)?.official, 'Masterton District')
+  assert.equal(areas.locate(170, -45), null, 'nowhere near')
+  assert.equal(areas.locate(174.75, -41.3)?.region.official, 'Wellington Region')
+})
+
+test('areas: region names', () => {
+  assert.equal(regionName('Wellington Region'), 'Wellington Region')
+  assert.equal(regionName('Auckland'), 'Auckland Region')
+  assert.equal(regionName('Area Outside Region'), 'Chatham Islands')
+})
+
+test('regions: charities sit in regions and districts, towns and pages follow', () => {
+  const inWellington = Array.from({ length: 3 }, () => charity({ place: 'Wellington', city: 'Wellington', lon: 174.75, lat: -41.3 }))
+  const inPetone = charity({ place: 'Lower Hutt', city: 'Lower Hutt', suburb: 'Petone', lon: 174.88, lat: -41.22 })
+  const inAuckland = charity({ name: 'Ponsonby Trust', place: 'Auckland', city: 'Auckland', lon: 174.75, lat: -36.85 })
+  const lost = charity({ lon: 170, lat: -45 })
+  const site = buildSite(
+    { charities: [...inWellington, inPetone, inAuckland, lost], groupNames: new Map(), syncedAt: null },
+    indexAreas(testAreas),
+  )
+
+  assert.deepEqual(
+    site.regions.map((r) => [r.name, r.slug, r.charities.length, r.districts.map((d) => d.name)]),
+    [
+      ['Auckland Region', 'auckland', 1, ['Waitematā']],
+      ['Wellington Region', 'wellington', 4, ['Lower Hutt City', 'Wellington City']],
+    ],
+  )
+  const waitemata = site.regions[0]!.districts[0]!
+  assert.equal(waitemata.localBoard, true)
+  assert.equal(waitemata.slug, 'waitemata')
+  assert.equal(site.districtOf.has(lost.cc), false)
+
+  const wellington = site.towns.find((t) => t.slug === 'wellington')!
+  assert.equal(wellington.home?.district?.name, 'Wellington City')
+
+  const browse = browsePage(site, ctx)
+  assert.match(browse, /href="\/region\/wellington\/"/)
+  const region = regionPage(site, ctx, site.regions[1]!)
+  assert.match(region, /<h1>Charities in the Wellington Region<\/h1>/)
+  assert.match(region, /href="\/region\/wellington\/lower-hutt-city\/"/)
+  assert.match(region, /in 2 districts and cities/)
+  const lowerHutt = districtPage(site, ctx, site.regions[1]!.districts[0]!)
+  assert.match(lowerHutt, /<span class="sub">Petone, Lower Hutt<\/span>/)
+  assert.match(regionPage(site, ctx, site.regions[0]!), /in 1 local board area\./)
+  assert.match(
+    districtPage(site, ctx, waitemata),
+    /<title>Charities in the Waitematā local board area \| NZ Charities Map<\/title>/,
+    'a local board page is told apart from a town of the same name',
+  )
+
+  const page = charityPage(site, ctx, inPetone)
+  assert.match(page, /<li><a href="\/region\/wellington\/">Wellington Region<\/a><\/li><li><a href="\/region\/wellington\/lower-hutt-city\/">Lower Hutt City<\/a><\/li>/)
+  assert.match(page, /"addressRegion":"Wellington"/)
 })

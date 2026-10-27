@@ -1,9 +1,10 @@
 /**
- * Turns the list of charities into what the pages need: towns, sectors, registered groups and
- * each charity's neighbours. Everything is sorted, so the same data always gives the same
- * pages, and a rebuild only uploads the pages whose content changed.
+ * Turns the list of charities into what the pages need: regions and districts, towns, sectors,
+ * registered groups and each charity's neighbours. Everything is sorted, so the same data always
+ * gives the same pages, and a rebuild only uploads the pages whose content changed.
  */
 import { OTHER_SECTOR, sectorColour } from '../../src/lib/sectors.ts'
+import type { AreaDistrict, AreaIndex, AreaRegion } from './areas.mts'
 import type { Charity, SourceData } from './fetch.mts'
 
 /** A town gets a page of its own from this many charities; fewer would make a near-empty page. */
@@ -26,6 +27,33 @@ export interface Town {
   sectors: Array<{ sector: Sector; charities: Charity[] }>
   /** A big town: each sector also gets a page of its own. */
   sectorPages: boolean
+  /** The region (and district) nearly all its charities are in, for the breadcrumb trail. */
+  home: { region: Region; district: District | null } | null
+}
+
+/** One of Stats NZ's 16 regions, or the Chatham Islands. */
+export interface Region {
+  code: string
+  /** "Wellington Region", "Auckland Region", "Chatham Islands". */
+  name: string
+  slug: string
+  charities: Charity[]
+  /** Its districts and cities (in Auckland, its local board areas), A to Z. */
+  districts: District[]
+}
+
+export interface District {
+  code: string
+  /** "Lower Hutt City", "Kapiti Coast District", or an Auckland local board area: "Waitematā". */
+  name: string
+  localBoard: boolean
+  slug: string
+  region: Region
+  charities: Charity[]
+  /** Its charities by sector, biggest sector first. */
+  sectors: Array<{ sector: Sector; charities: Charity[] }>
+  /** The towns its charities are in, biggest first, with the town's page if it has one (name null: no town on the register). */
+  places: Array<{ name: string | null; town: Town | null; count: number }>
 }
 
 export interface Sector {
@@ -47,6 +75,9 @@ export interface Near {
 export interface Site {
   charities: Charity[]
   byCc: Map<string, Charity>
+  /** North to south, in Stats NZ's order. Empty when the area outlines are missing. */
+  regions: Region[]
+  districtOf: Map<string, District>
   towns: Town[]
   /** Town page for a charity's place, if that place has one. */
   townOf: Map<string, Town>
@@ -227,7 +258,97 @@ function findNearby(charities: Charity[], spotOf: (c: Charity) => string, count:
 const bySize = (a: string, aCount: number, b: string, bCount: number) =>
   Number(a === OTHER_SECTOR) - Number(b === OTHER_SECTOR) || bCount - aCount || collator.compare(a, b)
 
-export function buildSite({ charities, groupNames, syncedAt }: SourceData): Site {
+/** A list of charities (already A to Z) by sector, biggest sector first. */
+function bySector(list: Charity[], sectorByName: Map<string, Sector>): Array<{ sector: Sector; charities: Charity[] }> {
+  const groups = new Map<Sector, Charity[]>()
+  for (const c of list) {
+    const s = sectorByName.get(c.sector)!
+    const g = groups.get(s)
+    if (g) g.push(c)
+    else groups.set(s, [c])
+  }
+  return [...groups]
+    .map(([sector, charities]) => ({ sector, charities }))
+    .sort((a, b) => bySize(a.sector.name, a.charities.length, b.sector.name, b.charities.length))
+}
+
+/** "Wellington Region" stays; Auckland (a unitary council) reads "Auckland Region"; the Chatham Islands are outside any region. */
+export function regionName(official: string): string {
+  if (/^area outside/i.test(official)) return 'Chatham Islands'
+  return /\bregion$/i.test(official) ? official : `${official} Region`
+}
+
+/** The most common value, when it covers at least `share` of the list. */
+function mostly<T>(values: Array<T | undefined>, share: number): T | null {
+  const counts = new Map<T, number>()
+  for (const v of values) if (v !== undefined) counts.set(v, (counts.get(v) ?? 0) + 1)
+  const [top] = [...counts].sort((a, b) => b[1] - a[1])
+  return top && top[1] >= values.length * share ? top[0] : null
+}
+
+/** Puts every charity in its Stats NZ region and district, and gives each town its place in them. */
+function placeInAreas(
+  charities: Charity[],
+  areas: AreaIndex,
+  towns: Town[],
+  townOf: Map<string, Town>,
+  sectorByName: Map<string, Sector>,
+): { regions: Region[]; districtOf: Map<string, District> } {
+  const regionFor = new Map<AreaRegion, Region>()
+  const districtFor = new Map<AreaDistrict, District>()
+  const districtOf = new Map<string, District>()
+  for (const c of charities) {
+    const area = areas.locate(c.lon, c.lat)
+    if (!area) continue
+    let district = districtFor.get(area)
+    if (!district) {
+      let region = regionFor.get(area.region)
+      if (!region) {
+        const name = regionName(area.region.official)
+        region = { code: area.region.code, name, slug: slugify(name.replace(/ region$/i, '')), charities: [], districts: [] }
+        regionFor.set(area.region, region)
+      }
+      const localBoard = / local board area$/i.test(area.official)
+      const name = area.official.replace(/ local board area$/i, '')
+      district = { code: area.code, name, localBoard, slug: slugify(name), region, charities: [], sectors: [], places: [] }
+      districtFor.set(area, district)
+      region.districts.push(district)
+    }
+    district.charities.push(c)
+    district.region.charities.push(c)
+    districtOf.set(c.cc, district)
+  }
+
+  const regions = [...regionFor.values()].sort((a, b) => a.code.localeCompare(b.code))
+  for (const region of regions) {
+    region.charities.sort(byName)
+    region.districts.sort((a, b) => collator.compare(a.name, b.name))
+    for (const d of region.districts) {
+      d.charities.sort(byName)
+      d.sectors = bySector(d.charities, sectorByName)
+      const places = new Map<string, District['places'][number]>()
+      for (const c of d.charities) {
+        const town = townOf.get(c.cc) ?? null
+        const name = town?.name ?? (c.place ? townName(new Map([[c.place, 1]])) : null)
+        const key = town ? `town:${town.key}` : name ? foldKey(name) : ''
+        const entry = places.get(key)
+        if (entry) entry.count++
+        else places.set(key, { name, town, count: 1 })
+      }
+      d.places = [...places.values()].sort((a, b) => b.count - a.count || collator.compare(a.name ?? '', b.name ?? ''))
+    }
+  }
+
+  // A town sits in the district (or at least the region) that nearly all its charities are in.
+  for (const town of towns) {
+    const district = mostly(town.charities.map((c) => districtOf.get(c.cc)), 0.8)
+    const region = district?.region ?? mostly(town.charities.map((c) => districtOf.get(c.cc)?.region), 0.8)
+    town.home = region ? { region, district } : null
+  }
+  return { regions, districtOf }
+}
+
+export function buildSite({ charities, groupNames, syncedAt }: SourceData, areas: AreaIndex | null = null): Site {
   const byCc = new Map(charities.map((c) => [c.cc, c]))
 
   // Sectors
@@ -270,28 +391,24 @@ export function buildSite({ charities, groupNames, syncedAt }: SourceData): Site
   for (const [key, { spellings, charities: list, others }] of townLists) {
     if (list.length < MIN_TOWN) continue
     list.sort(byName)
-    const groups = new Map<Sector, Charity[]>()
-    for (const c of list) {
-      const s = sectorByName.get(c.sector)!
-      const g = groups.get(s)
-      if (g) g.push(c)
-      else groups.set(s, [c])
-    }
     const town: Town = {
       key,
       slug: key.replace(/ /g, '-'),
       name: spellings.size ? townName(spellings) : titleCase(key),
       charities: list,
-      sectors: [...groups]
-        .map(([sector, cs]) => ({ sector, charities: cs }))
-        .sort((a, b) => bySize(a.sector.name, a.charities.length, b.sector.name, b.charities.length)),
+      sectors: bySector(list, sectorByName),
       sectorPages: list.length > SECTOR_PAGES_OVER,
+      home: null,
     }
     towns.push(town)
     for (const c of list) townOf.set(c.cc, town)
     for (const other of others) mergedTowns.set(other.replace(/ /g, '-'), town)
   }
   towns.sort((a, b) => collator.compare(a.name, b.name))
+
+  const { regions, districtOf } = areas
+    ? placeInAreas(charities, areas, towns, townOf, sectorByName)
+    : { regions: [], districtOf: new Map<string, District>() }
 
   // Registered groups
   const members = new Map<string, Charity[]>()
@@ -322,6 +439,8 @@ export function buildSite({ charities, groupNames, syncedAt }: SourceData): Site
   return {
     charities,
     byCc,
+    regions,
+    districtOf,
     towns,
     townOf,
     mergedTowns,

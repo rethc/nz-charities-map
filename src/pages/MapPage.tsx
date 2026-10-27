@@ -9,7 +9,7 @@ import {
   type MapPick,
   type MapSelection,
 } from '../components/CharityMap'
-import { BrandMark, CloseIcon, Spinner } from '../components/Icons'
+import { BrandMark, CloseIcon, ListIcon, Spinner } from '../components/Icons'
 import { SearchBox } from '../components/SearchBox'
 import { SectorFilter, SectorFilterSkeleton } from '../components/SectorFilter'
 import { useCharities } from '../hooks/useCharities'
@@ -362,12 +362,17 @@ export function MapPage() {
         <div className="mb-3 flex items-center gap-2.5">
           <BrandMark size={26} />
           <h1 className="text-[1.0625rem] leading-tight font-bold tracking-tight">NZ Charities Map</h1>
-          {/* A plain link, not a router one: the browse pages are static files built after the app (scripts/seo). */}
+          {/* A plain link, not a router one: the browse pages are static files built after the app (scripts/seo).
+              Square-cornered with an icon, so it reads as a way to another page, not one of the round filter pills. */}
           <a
             href="/browse/"
-            className="ml-auto text-sm font-semibold text-mist underline decoration-ink-line underline-offset-4 hover:text-paper hover:decoration-kowhai"
+            className="ml-auto inline-flex flex-none items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-semibold text-paper ring-1 ring-ink-line transition-colors hover:bg-ink-soft hover:ring-mist"
           >
-            Browse list
+            <ListIcon size={16} />
+            {/* One piece of text, so the flex gap doesn't open up between the words. */}
+            <span>
+              Browse<span className="max-[23rem]:hidden"> by region</span>
+            </span>
           </a>
         </div>
         <SearchBox
