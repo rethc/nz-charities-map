@@ -4,6 +4,13 @@ import {
   Body1Strong,
   Button,
   Card,
+  Dialog,
+  DialogActions,
+  DialogBody,
+  DialogContent,
+  DialogSurface,
+  DialogTitle,
+  DialogTrigger,
   MessageBar,
   MessageBarActions,
   MessageBarBody,
@@ -27,8 +34,12 @@ import {
   type BadgeProps,
 } from '@fluentui/react-components'
 import {
+  ArrowMaximize20Regular,
   ArrowUpload20Regular,
   CheckmarkCircle20Filled,
+  ChevronDown20Regular,
+  ChevronUp20Regular,
+  Dismiss24Regular,
   ErrorCircle20Filled,
   Open20Regular,
   SubtractCircle20Regular,
@@ -66,6 +77,10 @@ const UPLOAD_KIND = 'nz-charities-map/statement-reviews'
 /** Reviews per call: the database takes up to 500 at a time. */
 const CHUNK = 200
 const NARROW = '(max-width: 640px)'
+/** Below this the review panel would drop under the list (560 + 400 px columns, plus gaps and margins). */
+const COMPACT = '(max-width: 1040px)'
+/** Fluent's own breakpoint for dialogs. */
+const PHONE_DIALOG = '@media screen and (max-width: 480px)'
 const COLUMNS = '150px minmax(0, 1fr) 72px 124px 104px'
 
 const dateFormat = new Intl.DateTimeFormat('en-NZ', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
@@ -75,7 +90,11 @@ const keyOf = (r: StatementReview) => `${r.cc}-${r.year_ended}`
 const useStyles = makeStyles({
   wrap: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '16px', minWidth: 0 },
   toolbar: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '8px 12px' },
-  search: { width: 'min(100%, 22rem)' },
+  search: { maxWidth: 'none' },
+  // The two columns: the list (and the verdict filters above it), and the assessment (and the search).
+  listSide: { flex: '999 1 min(100%, 560px)', minWidth: 0 },
+  detailSide: { flex: '1 1 min(100%, 400px)', minWidth: 0 },
+  filterRow: { alignItems: 'center' },
   kpis: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 13rem), 1fr))', gap: '16px' },
   kpi: { display: 'grid', gap: '6px', alignContent: 'start' },
   kpiValue: {
@@ -87,7 +106,7 @@ const useStyles = makeStyles({
   muted: { color: tokens.colorNeutralForeground3 },
   filters: { flexWrap: 'wrap', rowGap: '4px' },
   split: { display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: '16px', minWidth: 0 },
-  list: { flex: '999 1 min(100%, 560px)', minWidth: 0, padding: 0, gap: 0, overflow: 'hidden' },
+  list: { padding: 0, gap: 0, overflow: 'hidden' },
   // The list scrolls in its own box, as the check lists do, so its headings stay in view.
   listBox: { overflow: 'auto', maxHeight: 'min(75vh, 64rem)' },
   head: {
@@ -133,7 +152,7 @@ const useStyles = makeStyles({
   top: { color: tokens.colorNeutralForeground2 },
   num: { fontVariantNumeric: 'tabular-nums' },
   empty: { padding: '24px 16px' },
-  detail: { flex: '1 1 min(100%, 400px)', minWidth: 0, display: 'grid', gap: '20px', padding: '20px' },
+  detail: { display: 'grid', gap: '20px', padding: '20px' },
   section: { display: 'grid', gap: '8px', minWidth: 0 },
   badgeRow: { justifySelf: 'start' },
   checks: {
@@ -170,19 +189,29 @@ const useStyles = makeStyles({
   },
   quoteText: { margin: 0, fontFamily: tokens.fontFamilyMonospace, overflowWrap: 'anywhere' },
   actions: { display: 'flex', flexWrap: 'wrap', gap: '8px' },
+  dialog: { width: 'min(1120px, calc(100vw - 32px))', maxWidth: 'none' },
+  dialogContent: { display: 'grid', gap: '20px' },
+  dialogGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 420px), 1fr))', gap: '24px', alignItems: 'start' },
+  column: { display: 'grid', gap: '20px', minWidth: 0 },
+  // Fluent stacks dialog buttons on phones; Previous and Next stay side by side, and the X
+  // in the title stands in for Close.
+  navActions: { alignItems: 'center', [`${PHONE_DIALOG}`]: { flexDirection: 'row', justifySelf: 'stretch' } },
+  navButton: { [`${PHONE_DIALOG}`]: { flex: '1 1 0' } },
+  counter: { whiteSpace: 'nowrap' },
+  closeActions: { [`${PHONE_DIALOG}`]: { display: 'none' } },
   hidden: { display: 'none' },
 })
 
 export function StatementsView() {
   const s = useStyles()
   const narrow = useMediaQuery(NARROW)
+  const compact = useMediaQuery(COMPACT)
   const [load, setLoad] = useState<LoadState>({ status: 'loading' })
   const [upload, setUpload] = useState<UploadState>({ status: 'idle' })
   const [filter, setFilter] = useState<Filter>('all')
   const [query, setQuery] = useState('')
   const [picked, setPicked] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
-  const detailRef = useRef<HTMLDivElement>(null)
 
   const loading = load.status === 'loading'
   useEffect(() => {
@@ -217,13 +246,16 @@ export function StatementsView() {
     )
   }, [reviews, filter, query])
   const selected = visible.find((r) => keyOf(r) === picked) ?? visible[0] ?? null
+  const index = selected ? visible.indexOf(selected) : -1
+  const [full, setFull] = useState(false)
 
+  const previous = index > 0 ? visible[index - 1] : undefined
+  const next = index >= 0 ? visible[index + 1] : undefined
+  // Wide: a click shows the review beside the list, to scan many quickly. Compact: there's no room
+  // beside the list, so a click opens the full review.
   const choose = (r: StatementReview) => {
     setPicked(keyOf(r))
-    // Below the list on a narrow screen: bring the assessment into view.
-    if (window.matchMedia('(max-width: 1000px)').matches) {
-      requestAnimationFrame(() => detailRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }))
-    }
+    if (compact) setFull(true)
   }
 
   const onFile = async (file: File | undefined) => {
@@ -320,10 +352,11 @@ export function StatementsView() {
             ))}
           </section>
 
-          <div className={s.toolbar}>
+          {/* Split like the list and assessment below, so the search box lines up with the assessment. */}
+          <div className={mergeClasses(s.split, s.filterRow)}>
             <TabList
               appearance="subtle-circular"
-              className={s.filters}
+              className={mergeClasses(s.listSide, s.filters)}
               selectedValue={filter}
               onTabSelect={(_, d) => setFilter(d.value as Filter)}
               aria-label="Filter by verdict"
@@ -338,7 +371,7 @@ export function StatementsView() {
               ))}
             </TabList>
             <SearchBox
-              className={s.search}
+              className={mergeClasses(s.detailSide, s.search)}
               placeholder="Search name or CC number"
               aria-label="Search the statement reviews"
               value={query}
@@ -347,7 +380,7 @@ export function StatementsView() {
           </div>
 
           <div className={s.split}>
-            <Card className={s.list}>
+            <Card className={mergeClasses(s.listSide, s.list)}>
               <div className={s.listBox}>
                 <div className={s.head} aria-hidden="true">
                   <span>Verdict</span>
@@ -385,10 +418,21 @@ export function StatementsView() {
               </div>
             </Card>
 
-            {selected && (
-              <Card ref={detailRef} className={s.detail} aria-label="Assessment" role="region">
-                <Assessment review={selected} narrow={narrow} />
+            {selected && !compact && (
+              <Card className={mergeClasses(s.detailSide, s.detail)} aria-label="Assessment" role="region">
+                <QuickView review={selected} onOpen={() => setFull(true)} />
               </Card>
+            )}
+            {selected && full && (
+              <FullReview
+                review={selected}
+                position={index + 1}
+                total={visible.length}
+                narrow={narrow}
+                onPrevious={previous ? () => setPicked(keyOf(previous)) : null}
+                onNext={next ? () => setPicked(keyOf(next)) : null}
+                onClose={() => setFull(false)}
+              />
             )}
           </div>
         </>
@@ -404,104 +448,212 @@ const CHECK_ICON: Record<StatementCheckStatus, { icon: typeof CheckmarkCircle20F
   na: { icon: SubtractCircle20Regular, label: 'Not checked' },
 }
 
-function Assessment({ review: r, narrow }: { review: StatementReview; narrow: boolean }) {
+/** Verdict, name, and the charity's number, tier and year. */
+function Heading({ review: r, title = true }: { review: StatementReview; title?: boolean }) {
   const s = useStyles()
-  const v = r.review
+  return (
+    <div className={s.section}>
+      <Badge className={s.badgeRow} appearance="tint" shape="rounded" size="large" color={VERDICTS[r.verdict].color}>
+        {VERDICTS[r.verdict].label}
+      </Badge>
+      {title && <Subtitle1 as="h2">{r.name}</Subtitle1>}
+      <Body1 className={s.muted}>
+        {r.cc} · {r.tier ? `Tier ${r.tier}` : 'Tier unknown'} · year ended {showDate(r.year_ended)}
+      </Body1>
+    </div>
+  )
+}
+
+function AssessmentText({ review: r }: { review: StatementReview }) {
+  const s = useStyles()
+  return (
+    <div className={s.section}>
+      <Subtitle2 as="h3">Assessment</Subtitle2>
+      <Body1>{r.review.assessment}</Body1>
+      <Body1 className={s.muted}>
+        Confidence: {r.review.confidence}. {r.review.confidence_why}
+      </Body1>
+    </div>
+  )
+}
+
+function Checks({ review: r }: { review: StatementReview }) {
+  const s = useStyles()
+  return (
+    <div className={s.section}>
+      <Subtitle2 as="h3">Checks</Subtitle2>
+      <ul className={s.checks}>
+        {r.review.checks.map((c) => {
+          const { icon: Icon, label } = CHECK_ICON[c.status] ?? CHECK_ICON.na
+          return (
+            <li key={c.label} className={s.check}>
+              <Icon className={s[c.status] ?? s.na} role="img" aria-label={label} />
+              <span className={s.checkText}>
+                <Body1Strong>{c.label}</Body1Strong>
+                <Body1>{c.detail}</Body1>
+              </span>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
+}
+
+function Figures({ review: r, narrow }: { review: StatementReview; narrow: boolean }) {
+  const s = useStyles()
+  if (r.review.figures.length === 0) return null
+  return (
+    <div className={s.section}>
+      <Subtitle2 as="h3">Figures: return against statement</Subtitle2>
+      <div className={s.tableBox}>
+        <Table size="small" aria-label="Figures: return against statement">
+          <TableHeader>
+            <TableRow>
+              <TableHeaderCell>Figure</TableHeaderCell>
+              <TableHeaderCell className={s.right}>In the return</TableHeaderCell>
+              <TableHeaderCell className={s.right}>In the statement</TableHeaderCell>
+              {!narrow && <TableHeaderCell className={s.right}>Page</TableHeaderCell>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {r.review.figures.map((g) => (
+              <TableRow key={g.what} className={g.ok ? undefined : s.off}>
+                <TableCell>{g.what}</TableCell>
+                <TableCell className={s.right}>{g.declared}</TableCell>
+                <TableCell className={mergeClasses(s.right, !g.ok && s.offValue)}>{g.statement}</TableCell>
+                {!narrow && <TableCell className={s.right}>{g.page === '–' ? '–' : `p.${g.page}`}</TableCell>}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  )
+}
+
+function Evidence({ review: r }: { review: StatementReview }) {
+  const s = useStyles()
+  if (r.review.evidence.length === 0) return null
+  return (
+    <div className={s.section}>
+      <Subtitle2 as="h3">From the statement</Subtitle2>
+      {r.review.evidence.map((e) => (
+        <figure key={`${e.where}-${e.page}-${e.quote}`} className={s.quote}>
+          <blockquote className={s.quoteText}>“{e.quote}”</blockquote>
+          <figcaption>
+            <Body1 className={s.muted}>
+              {e.page ? `Page ${e.page}, ` : ''}
+              {e.where}
+            </Body1>
+          </figcaption>
+        </figure>
+      ))}
+    </div>
+  )
+}
+
+function RegisterLink({ review: r, appearance }: { review: StatementReview; appearance: 'primary' | 'secondary' }) {
+  return (
+    <Button appearance={appearance} as="a" href={registerUrl(r.cc)} target="_blank" rel="noopener noreferrer" icon={<Open20Regular />}>
+      Open the register page
+    </Button>
+  )
+}
+
+function WhereToLook({ review: r }: { review: StatementReview }) {
+  const s = useStyles()
+  return (
+    <Body1 className={s.muted}>
+      The statement is filed with the return for the year ended {showDate(r.year_ended)}; start at page {r.review.first_page}. A lead to
+      check, never a ruling.
+    </Body1>
+  )
+}
+
+/** The panel beside the list: the verdict, the assessment and the checks. */
+function QuickView({ review: r, onOpen }: { review: StatementReview; onOpen: () => void }) {
+  const s = useStyles()
   return (
     <>
-      <div className={s.section}>
-        <Badge className={s.badgeRow} appearance="tint" shape="rounded" size="large" color={VERDICTS[r.verdict].color}>
-          {VERDICTS[r.verdict].label}
-        </Badge>
-        <Subtitle1 as="h2">{r.name}</Subtitle1>
-        <Body1 className={s.muted}>
-          {r.cc} · {r.tier ? `Tier ${r.tier}` : 'Tier unknown'} · year ended {showDate(r.year_ended)}
-        </Body1>
+      <Heading review={r} />
+      <AssessmentText review={r} />
+      <div className={s.actions}>
+        <Button appearance="primary" icon={<ArrowMaximize20Regular />} onClick={onOpen}>
+          Open full review
+        </Button>
+        <RegisterLink review={r} appearance="secondary" />
       </div>
-
-      <div className={s.section}>
-        <Subtitle2 as="h3">Assessment</Subtitle2>
-        <Body1>{v.assessment}</Body1>
-        <Body1 className={s.muted}>
-          Confidence: {v.confidence}. {v.confidence_why}
-        </Body1>
-      </div>
-
-      <div className={s.section}>
-        <Subtitle2 as="h3">Checks</Subtitle2>
-        <ul className={s.checks}>
-          {v.checks.map((c) => {
-            const { icon: Icon, label } = CHECK_ICON[c.status] ?? CHECK_ICON.na
-            return (
-              <li key={c.label} className={s.check}>
-                <Icon className={s[c.status] ?? s.na} role="img" aria-label={label} />
-                <span className={s.checkText}>
-                  <Body1Strong>{c.label}</Body1Strong>
-                  <Body1>{c.detail}</Body1>
-                </span>
-              </li>
-            )
-          })}
-        </ul>
-      </div>
-
-      {v.figures.length > 0 && (
-        <div className={s.section}>
-          <Subtitle2 as="h3">Figures: return against statement</Subtitle2>
-          <div className={s.tableBox}>
-            <Table size="small" aria-label="Figures: return against statement">
-              <TableHeader>
-                <TableRow>
-                  <TableHeaderCell>Figure</TableHeaderCell>
-                  <TableHeaderCell className={s.right}>In the return</TableHeaderCell>
-                  <TableHeaderCell className={s.right}>In the statement</TableHeaderCell>
-                  {!narrow && <TableHeaderCell className={s.right}>Page</TableHeaderCell>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {v.figures.map((g) => (
-                  <TableRow key={g.what} className={g.ok ? undefined : s.off}>
-                    <TableCell>{g.what}</TableCell>
-                    <TableCell className={s.right}>{g.declared}</TableCell>
-                    <TableCell className={mergeClasses(s.right, !g.ok && s.offValue)}>{g.statement}</TableCell>
-                    {!narrow && <TableCell className={s.right}>{g.page === '–' ? '–' : `p.${g.page}`}</TableCell>}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </div>
-      )}
-
-      {v.evidence.length > 0 && (
-        <div className={s.section}>
-          <Subtitle2 as="h3">From the statement</Subtitle2>
-          {v.evidence.map((e) => (
-            <figure key={`${e.where}-${e.page}-${e.quote}`} className={s.quote}>
-              <blockquote className={s.quoteText}>“{e.quote}”</blockquote>
-              <figcaption>
-                <Body1 className={s.muted}>
-                  {e.page ? `Page ${e.page}, ` : ''}
-                  {e.where}
-                </Body1>
-              </figcaption>
-            </figure>
-          ))}
-        </div>
-      )}
-
-      <div className={s.section}>
-        <div className={s.actions}>
-          <Button appearance="primary" as="a" href={registerUrl(r.cc)} target="_blank" rel="noopener noreferrer" icon={<Open20Regular />}>
-            Open the register page
-          </Button>
-        </div>
-        <Body1 className={s.muted}>
-          The statement is filed with the return for the year ended {showDate(r.year_ended)}; start at page {v.first_page}. A lead to
-          check, never a ruling.
-        </Body1>
-      </div>
+      <Checks review={r} />
     </>
+  )
+}
+
+/**
+ * Everything about one review in a large dialog, in two columns, with Previous and Next to step
+ * through the filtered list without closing it (as a record form does in Dynamics 365).
+ */
+function FullReview({ review: r, position, total, narrow, onPrevious, onNext, onClose }: {
+  review: StatementReview
+  position: number
+  total: number
+  narrow: boolean
+  onPrevious: (() => void) | null
+  onNext: (() => void) | null
+  onClose: () => void
+}) {
+  const s = useStyles()
+  return (
+    <Dialog open onOpenChange={(_, d) => !d.open && onClose()}>
+      <DialogSurface className={s.dialog}>
+        <DialogBody>
+          <DialogTitle
+            action={
+              <DialogTrigger action="close">
+                <Button appearance="subtle" aria-label="Close" icon={<Dismiss24Regular />} />
+              </DialogTrigger>
+            }
+          >
+            {r.name}
+          </DialogTitle>
+          <DialogContent className={s.dialogContent}>
+            <Heading review={r} title={false} />
+            <div className={s.dialogGrid}>
+              <div className={s.column}>
+                <AssessmentText review={r} />
+                <Checks review={r} />
+              </div>
+              <div className={s.column}>
+                <Figures review={r} narrow={narrow} />
+                <Evidence review={r} />
+                <div className={s.section}>
+                  <div className={s.actions}>
+                    <RegisterLink review={r} appearance="primary" />
+                  </div>
+                  <WhereToLook review={r} />
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+          <DialogActions position="start" className={s.navActions}>
+            <Button className={s.navButton} icon={<ChevronUp20Regular />} disabled={!onPrevious} onClick={onPrevious ?? undefined}>
+              Previous
+            </Button>
+            <Button className={s.navButton} icon={<ChevronDown20Regular />} disabled={!onNext} onClick={onNext ?? undefined}>
+              Next
+            </Button>
+            <Body1 className={mergeClasses(s.muted, s.counter)} aria-live="polite">
+              {formatCount(position)} of {formatCount(total)}
+            </Body1>
+          </DialogActions>
+          <DialogActions position="end" className={s.closeActions}>
+            <DialogTrigger action="close">
+              <Button appearance="secondary">Close</Button>
+            </DialogTrigger>
+          </DialogActions>
+        </DialogBody>
+      </DialogSurface>
+    </Dialog>
   )
 }
 
