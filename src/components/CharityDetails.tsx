@@ -21,7 +21,7 @@ const textLink = 'text-link underline-offset-2 hover:text-brand-pressed hover:un
 const button =
   'inline-flex h-10 grow items-center justify-center gap-1.5 rounded px-3 text-base font-semibold transition-colors'
 const buttonQuiet = `${button} border border-stroke bg-white text-ink hover:border-mist hover:bg-paper active:bg-line`
-const fieldName = 'text-sm text-muted'
+const fieldName = 'text-base text-muted'
 
 function useFocusOnMount<T extends HTMLElement>(enabled: boolean | undefined) {
   const ref = useRef<T>(null)
@@ -142,7 +142,7 @@ export function CharityDetails({
           >
             {point.name}
           </h2>
-          <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+          <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-base">
             <span className="font-semibold tabular-nums">
               <span className="sr-only">Registration number </span>
               {point.cc}

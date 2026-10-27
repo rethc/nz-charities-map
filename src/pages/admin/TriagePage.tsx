@@ -323,7 +323,7 @@ function Triage({ email }: { email: string | null }) {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="on-ink flex flex-none flex-wrap items-center gap-x-4 gap-y-2 bg-ink px-4 py-2.5 text-white">
+      <header className="on-ink flex flex-none flex-wrap items-center gap-x-4 gap-y-2 bg-bar px-4 py-2.5 text-white">
         <div className="flex items-center gap-2.5">
           <BrandMark size={26} />
           <h1 className="font-display text-base leading-tight font-semibold">Location review</h1>

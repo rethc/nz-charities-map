@@ -359,7 +359,7 @@ export function MapPage() {
       <header
         ref={headerRef}
         // The side panel takes the header's place while it is open.
-        className={`on-ink absolute inset-x-0 top-0 z-20 rounded-b-2xl bg-ink px-4 pt-[max(env(safe-area-inset-top),0.875rem)] pb-3.5 text-white shadow-float card:inset-x-auto card:top-4 card:left-[max(1rem,env(safe-area-inset-left))] card:w-[min(27rem,56vw)] card:rounded-2xl card:p-4 ${layout === 'side' && panel ? 'hidden' : ''}`}
+        className={`on-ink absolute inset-x-0 top-0 z-20 rounded-b-2xl bg-bar px-4 pt-[max(env(safe-area-inset-top),0.875rem)] pb-3.5 text-white shadow-float card:inset-x-auto card:top-4 card:left-[max(1rem,env(safe-area-inset-left))] card:w-[min(27rem,56vw)] card:rounded-2xl card:p-4 ${layout === 'side' && panel ? 'hidden' : ''}`}
       >
         <div className="mb-3 flex items-center gap-2.5">
           <BrandMark size={26} />
@@ -368,7 +368,7 @@ export function MapPage() {
               Square-cornered with an icon, so it reads as a way to another page, not one of the round filter pills. */}
           <a
             href="/browse/"
-            className="ml-auto inline-flex h-9 flex-none items-center justify-center gap-1.5 rounded border border-ink-line px-3 text-base font-semibold text-white transition-colors hover:border-mist hover:bg-ink-soft active:bg-ink"
+            className="ml-auto inline-flex h-9 flex-none items-center justify-center gap-1.5 rounded border border-ink-line px-3 text-base font-semibold text-white transition-colors hover:border-mist hover:bg-ink-soft active:bg-bar"
           >
             <ListIcon size={16} />
             {/* One piece of text, so the flex gap doesn't open up between the words. */}

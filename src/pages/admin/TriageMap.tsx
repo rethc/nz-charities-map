@@ -35,9 +35,10 @@ interface TriageMapProps {
   onPlacePin: (lonLat: LonLat) => void
 }
 
-/** Clusters and shared-address stacks: Fluent's brand blue. */
+/** Clusters and shared-address stacks: the dark ink of the site's header bars. */
 const INK = '#1a242c'
-const KOWHAI = '#f2b705'
+/** The pin being placed: a deep red (the flag's), so it stands out on yellow main roads. */
+const PIN_RED = '#c8102e'
 const GREY = '#7A8589'
 const AERIAL = 'linz-aerial'
 /** Nearby charities already on the map are loaded from this zoom in (to spot neighbours and duplicates). */
@@ -193,7 +194,7 @@ export function TriageMap({ pin, candidates, target, padding, onPlacePin }: Tria
       markerRef.current.setLngLat([pinLon, pinLat])
       return
     }
-    const marker = new Marker({ color: KOWHAI, draggable: true }).setLngLat([pinLon, pinLat]).addTo(map)
+    const marker = new Marker({ color: PIN_RED, draggable: true }).setLngLat([pinLon, pinLat]).addTo(map)
     marker.getElement().setAttribute('aria-label', 'Charity location pin. Drag it, or focus it and use the arrow keys.')
     marker.on('dragend', () => {
       const ll = marker.getLngLat().wrap()

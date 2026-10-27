@@ -97,6 +97,9 @@ interface Row {
   limit: number | null
   /** Each year's tier limit, beside `spent` and `years`. */
   limits: number[]
+  /** A2: `stayed` (over the limit too long) or `moved_down`, and the tier it moved down from. */
+  reason: string | null
+  fromTier: number | null
   spent: number[]
   years: string[]
 }
@@ -179,6 +182,8 @@ const GROUPS: Record<Group, { tab: string; title: string; foot: string; icon: Re
 }
 const GROUP_NAMES = Object.keys(GROUPS) as Group[]
 const PAGE = 100
+/** The theme's burnt orange: the second colour in a chart, beside the brand blue. */
+const WARM = '#ad5400'
 /** Charities shown in the overview's tier chart: the full list is under A2. */
 const TIER_TOP = 12
 const NOT_ON_MAP = 'Not on the map'
@@ -202,9 +207,9 @@ const brand: BrandVariants = {
 /** Fluent's light theme in the site's colours, with 16px body text: easier to read than Fluent's 14px. */
 const theme: Theme = {
   ...createLightTheme(brand),
-  colorNeutralForeground1: '#1a242c',
-  colorNeutralForeground2: '#2f3e46',
-  colorNeutralForeground3: '#4a5a63',
+  colorNeutralForeground1: '#0b1419',
+  colorNeutralForeground2: '#26333a',
+  colorNeutralForeground3: '#3a4850',
   colorNeutralBackground3: '#f5f8f9',
   colorNeutralStroke2: '#ddedf3',
   fontSizeBase200: '14px',
@@ -308,7 +313,8 @@ const useStyles = makeStyles({
   tipHead: { fontWeight: tokens.fontWeightSemibold },
   legend: { display: 'flex', flexWrap: 'wrap', gap: '4px 16px', color: tokens.colorNeutralForeground3 },
   legendItem: { display: 'inline-flex', alignItems: 'center', gap: '6px' },
-  dot: { width: '10px', height: '10px', borderRadius: '50%', backgroundColor: tokens.colorBrandForeground1 },
+  swatch: { width: '12px', height: '12px', borderRadius: '2px', backgroundColor: tokens.colorBrandForeground1 },
+  swatchWarm: { backgroundColor: WARM },
   dash: { width: '14px', height: 0, borderTop: `2px dashed ${tokens.colorNeutralForeground3}` },
   toolbar: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '8px 12px' },
   search: { width: 'min(100%, 22rem)' },
@@ -379,6 +385,8 @@ function Returns({ email }: { email: string | null }) {
         tier: d.tier === undefined ? null : num(d.tier),
         limit: d.limit === undefined ? null : num(d.limit),
         limits: Array.isArray(d.limits) ? d.limits.map(num) : [],
+        reason: typeof d.reason === 'string' ? d.reason : null,
+        fromTier: d.from_tier === undefined ? null : num(d.from_tier),
         spent: Array.isArray(d.spent) ? d.spent.map(num) : [],
         years: Array.isArray(d.years) ? d.years.map((y) => String(y ?? '').slice(0, 4)) : [],
       }
@@ -582,6 +590,29 @@ function Overview({
       .sort((a, b) => b.value - a.value)
   }, [charities, lists.overdue])
   const offMap = lists.overdue.filter((r) => r.sector === NOT_ON_MAP).length
+  const tierBars = useMemo(
+    () =>
+      lists.tier_over_limit
+        .filter((r) => r.value !== null)
+        .sort((a, b) => (b.value ?? 0) - (a.value ?? 0))
+        .slice(0, TIER_TOP)
+        .map((r) => {
+          const moved = r.reason === 'moved_down'
+          const spent = r.spent.at(-1) ?? 0
+          return {
+            key: r.id,
+            label: r.name,
+            value: r.value ?? 0,
+            color: moved ? WARM : undefined,
+            tip: [
+              r.name,
+              moved ? `Moved down from Tier ${r.fromTier} to Tier ${r.tier}` : `Tier ${r.tier}, over its limit too many years running`,
+              `Latest year: ${money(spent)}, ${(r.value ?? 0).toFixed(1)}× the ${money(r.limit ?? 0)} limit`,
+            ],
+          }
+        }),
+    [lists.tier_over_limit],
+  )
 
   return (
     <div className={s.overview}>
@@ -599,16 +630,22 @@ function Overview({
           </ChartCard>
           <ChartCard
             title="Spending against the tier limit"
-            description={`The ${formatCount(Math.min(TIER_TOP, lists.tier_over_limit.length))} furthest over, of ${formatCount(lists.tier_over_limit.length)}: each return's spending as a multiple of that year's tier limit.`}
+            description={`How many times over its tier's limit each charity spent in its latest return. The ${formatCount(tierBars.length)} furthest over, of ${formatCount(lists.tier_over_limit.length)}.`}
             onView={() => onView('tier_over_limit')}
           >
             <div className={s.legend} aria-hidden="true">
-              <Caption1 className={s.legendItem}><span className={s.dot} style={{ opacity: 0.3 }} />Earliest</Caption1>
-              <Caption1 className={s.legendItem}><span className={s.dot} style={{ opacity: 0.6 }} />Middle</Caption1>
-              <Caption1 className={s.legendItem}><span className={s.dot} />Latest year</Caption1>
-              <Caption1 className={s.legendItem}><span className={s.dash} />Tier limit</Caption1>
+              <Caption1 className={s.legendItem}><span className={s.swatch} />Stayed in its tier too long</Caption1>
+              <Caption1 className={s.legendItem}><span className={mergeClasses(s.swatch, s.swatchWarm)} />Moved down a tier it's too big for</Caption1>
+              <Caption1 className={s.legendItem}><span className={s.dash} />The limit</Caption1>
             </div>
-            <TierDots rows={lists.tier_over_limit} />
+            <HBars
+              rows={tierBars}
+              format={(v) => `${v.toFixed(1)}×`}
+              tick={(v) => `${v}×`}
+              mark={{ value: 1, label: 'Limit' }}
+              tip={(r) => r.tip}
+              label="How many times over its tier's limit each charity spent in its latest year"
+            />
           </ChartCard>
         </div>
         <ChartCard
@@ -776,29 +813,32 @@ function TipBox({ tip, width }: { tip: Tip | null; width: number }) {
 }
 
 /** Horizontal bars in Fluent's chart style: a value axis along the bottom, values at the bar ends. */
-function HBars<T extends { key: string; label: string; value: number; muted?: boolean }>({
+function HBars<T extends { key: string; label: string; value: number; muted?: boolean; color?: string }>({
   rows,
   format,
   tick,
   tip,
   label,
+  mark,
 }: {
   rows: T[]
   format: (v: number) => string
   tick: (v: number) => string
   tip: (r: T) => string[]
   label: string
+  /** A value to mark with a dashed line across the bars, such as a limit. */
+  mark?: { value: number; label: string }
 }) {
   const s = useStyles()
   const [ref, box] = useElementBox<HTMLDivElement>()
   const { tip: shown, setTip } = useTip()
   const width = Math.max(260, box.width)
-  const rowH = 34, top = 4, axisH = 22
+  const rowH = 34, top = mark ? 22 : 4, axisH = 22
   const height = top + rows.length * rowH + axisH
   const labelW = Math.min(width * 0.4, Math.max(0, ...rows.map((r) => textWidth(r.label, LABEL))))
   const valueW = Math.max(0, ...rows.map((r) => textWidth(format(r.value), TICK, 600)))
   const left = labelW + 12, right = valueW + 12
-  const { ticks, top: maxValue } = niceTicks(Math.max(...rows.map((r) => r.value), 0) || 1, Math.max(2, Math.min(6, Math.floor((width - left - right) / 70))))
+  const { ticks, top: maxValue } = niceTicks(Math.max(...rows.map((r) => r.value), mark?.value ?? 0, 0) || 1, Math.max(2, Math.min(6, Math.floor((width - left - right) / 70))))
   const x = (v: number) => left + (v / maxValue) * Math.max(40, width - left - right)
   const bar = rowH * 0.6
   return (
@@ -821,7 +861,7 @@ function HBars<T extends { key: string; label: string; value: number; muted?: bo
                   {clip(r.label, LABEL, labelW)}
                 </text>
                 <rect x={left} y={y} width={Math.max(2, x(r.value) - left)} height={bar} rx={2}
-                  style={{ fill: r.muted ? tokens.colorNeutralStroke1Pressed : tokens.colorBrandForeground1 }} />
+                  style={{ fill: r.color ?? (r.muted ? tokens.colorNeutralStroke1Pressed : tokens.colorBrandForeground1) }} />
                 <text x={Math.max(left, x(r.value)) + 6} y={y + bar / 2} dy="0.35em" fontSize={TICK} fontWeight={600}
                   style={{ fill: tokens.colorNeutralForeground1, fontVariantNumeric: 'tabular-nums' }}>
                   {format(r.value)}
@@ -834,87 +874,15 @@ function HBars<T extends { key: string; label: string; value: number; muted?: bo
               </g>
             )
           })}
-        </svg>
-      )}
-      <TipBox tip={shown} width={width} />
-    </div>
-  )
-}
-
-/** The charities furthest over: each one's returns as a multiple of that year's tier limit. */
-function TierDots({ rows }: { rows: Row[] }) {
-  const s = useStyles()
-  const [ref, box] = useElementBox<HTMLDivElement>()
-  const { tip: shown, setTip } = useTip()
-  const items = useMemo(
-    () =>
-      rows
-        .map((r) => {
-          const pts = r.spent.map((spent, i) => {
-            const limit = r.limits[i] ?? r.limit ?? 1
-            return { spent, limit, year: r.years[i] ?? '', ratio: spent / limit, i }
-          })
-          return { ...r, pts, max: Math.max(...pts.map((p) => p.ratio), 0) }
-        })
-        .sort((a, b) => b.max - a.max)
-        .slice(0, TIER_TOP),
-    [rows],
-  )
-  const width = Math.max(280, box.width)
-  const rowH = 28, top = 4, axisH = 22
-  const height = top + items.length * rowH + axisH
-  const labelW = Math.min(width * 0.42, Math.max(0, ...items.map((r) => textWidth(r.name, LABEL))))
-  const tagW = 30
-  const left = labelW + tagW + 16, right = 16
-  const xMax = Math.max(2, Math.ceil(Math.max(...items.map((r) => r.max), 2) * 1.05 * 2) / 2)
-  const x = (v: number) => left + (v / xMax) * (width - left - right)
-  const { ticks } = niceTicks(xMax, Math.max(2, Math.min(8, Math.floor((width - left) / 70))))
-  const opacity = [1, 0.6, 0.3]
-  return (
-    <div ref={ref} className={s.chart} onMouseLeave={() => setTip(null)}>
-      {box.width > 0 && (
-        <svg width="100%" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Spending as a multiple of the tier limit, last three returns"
-          style={{ fontFamily: tokens.fontFamilyBase, display: 'block', overflow: 'visible' }}>
-          {ticks.filter((t) => t <= xMax).map((t) => (
-            <g key={t}>
-              <line x1={x(t)} x2={x(t)} y1={top} y2={top + items.length * rowH} style={{ stroke: tokens.colorNeutralStroke2 }} />
-              <text x={x(t)} y={height - 6} textAnchor="middle" fontSize={TICK} style={{ fill: tokens.colorNeutralForeground3 }}>
-                {t === 0 ? '0' : `${t}×`}
+          {mark && (
+            <g aria-hidden="true">
+              <line x1={x(mark.value)} x2={x(mark.value)} y1={top - 4} y2={top + rows.length * rowH} strokeDasharray="4 3" strokeWidth={1.5}
+                style={{ stroke: tokens.colorNeutralForeground1 }} />
+              <text x={x(mark.value)} y={top - 9} textAnchor="middle" fontSize={TICK} fontWeight={600} style={{ fill: tokens.colorNeutralForeground1 }}>
+                {mark.label}
               </text>
             </g>
-          ))}
-          <line x1={x(1)} x2={x(1)} y1={top} y2={top + items.length * rowH} strokeDasharray="4 3" strokeWidth={1.5}
-            style={{ stroke: tokens.colorNeutralForeground3 }} />
-          {items.map((r, i) => {
-            const cy = top + i * rowH + rowH / 2
-            const lo = Math.min(...r.pts.map((p) => p.ratio))
-            return (
-              <g key={r.id}>
-                <text x={left - tagW - 12} y={cy} dy="0.35em" textAnchor="end" fontSize={LABEL} style={{ fill: tokens.colorNeutralForeground2 }}>
-                  {clip(r.name, LABEL, labelW)}
-                </text>
-                <rect x={left - tagW - 4} y={cy - 9} width={tagW - 4} height={18} rx={4}
-                  style={{ fill: tokens.colorBrandBackground2, stroke: tokens.colorBrandStroke2 }} />
-                <text x={left - tagW / 2 - 6} y={cy} dy="0.35em" textAnchor="middle" fontSize={11} fontWeight={600} style={{ fill: tokens.colorBrandForeground1 }}>
-                  T{r.tier}
-                </text>
-                <line x1={x(lo)} x2={x(r.max)} y1={cy} y2={cy} strokeWidth={2} strokeLinecap="round" style={{ stroke: tokens.colorNeutralStroke1 }} />
-                {r.pts.map((p) => (
-                  <circle key={p.i} cx={x(p.ratio)} cy={cy} r={5.5}
-                    style={{ fill: tokens.colorBrandForeground1, fillOpacity: opacity[r.pts.length - 1 - p.i] ?? 0.3, stroke: tokens.colorBrandForeground1 }} />
-                ))}
-                <rect x={0} y={top + i * rowH} width={width} height={rowH} style={{ fill: 'transparent' }}
-                  onMouseMove={(e) => {
-                    const b = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect()
-                    setTip({
-                      x: e.clientX - b.left,
-                      y: e.clientY - b.top,
-                      lines: [`${r.name} · Tier ${r.tier}`, ...r.pts.map((p) => `${p.year}: ${money(p.spent)}, ${p.ratio.toFixed(1)}× the ${money(p.limit)} limit`)],
-                    })
-                  }} />
-              </g>
-            )
-          })}
+          )}
         </svg>
       )}
       <TipBox tip={shown} width={width} />
