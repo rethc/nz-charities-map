@@ -110,7 +110,7 @@ export function SearchBox({
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
         onKeyDown={onKeyDown}
-        className="h-10 w-full rounded border border-stroke border-b-stroke-strong bg-white pr-11 pl-9 text-sm text-ink placeholder:text-muted hover:border-mist hover:border-b-ink-soft focus:border-b-brand focus:shadow-[inset_0_-1px_0_var(--color-brand)] focus:outline-none disabled:opacity-70"
+        className="h-10 w-full rounded border border-stroke border-b-stroke-strong bg-white pr-11 pl-9 text-base text-ink placeholder:text-muted hover:border-mist hover:border-b-ink-soft focus:border-b-brand focus:shadow-[inset_0_-1px_0_var(--color-brand)] focus:outline-none disabled:opacity-70"
       />
       {value ? (
         <button

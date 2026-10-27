@@ -44,7 +44,8 @@ const ROOM_FOR_ATTRIBUTION = 28
 /** "Zoom to these" is offered when the matches are few enough to be worth framing. */
 const MAX_FIT = 5000
 
-const linkButton = 'text-link underline-offset-2 hover:text-brand-pressed hover:underline'
+/** On the dark header: white, underlined, so it reads as a link without a link colour. */
+const linkButton = 'font-semibold text-white underline decoration-mist underline-offset-4 hover:decoration-white'
 
 function selectionFromUrl(params: URLSearchParams): Selection | null {
   const cc = params.get('cc')?.trim().toUpperCase()
@@ -319,7 +320,7 @@ export function MapPage() {
   } else if (charities.status === 'error') {
     status = (
       <div role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <p className="text-alert">Couldn't load the charities. {charities.error}</p>
+        <p className="text-white">Couldn't load the charities. {charities.error}</p>
         <button type="button" onClick={charities.retry} className={linkButton}>
           Try again
         </button>
@@ -358,7 +359,7 @@ export function MapPage() {
       <header
         ref={headerRef}
         // The side panel takes the header's place while it is open.
-        className={`absolute inset-x-0 top-0 z-20 rounded-b-2xl bg-white px-4 pt-[max(env(safe-area-inset-top),0.875rem)] pb-3.5 text-ink shadow-float card:inset-x-auto card:top-4 card:left-[max(1rem,env(safe-area-inset-left))] card:w-[min(27rem,56vw)] card:rounded-2xl card:p-4 ${layout === 'side' && panel ? 'hidden' : ''}`}
+        className={`on-ink absolute inset-x-0 top-0 z-20 rounded-b-2xl bg-ink px-4 pt-[max(env(safe-area-inset-top),0.875rem)] pb-3.5 text-white shadow-float card:inset-x-auto card:top-4 card:left-[max(1rem,env(safe-area-inset-left))] card:w-[min(27rem,56vw)] card:rounded-2xl card:p-4 ${layout === 'side' && panel ? 'hidden' : ''}`}
       >
         <div className="mb-3 flex items-center gap-2.5">
           <BrandMark size={26} />
@@ -367,7 +368,7 @@ export function MapPage() {
               Square-cornered with an icon, so it reads as a way to another page, not one of the round filter pills. */}
           <a
             href="/browse/"
-            className="ml-auto flex-none inline-flex items-center justify-center gap-1.5 rounded px-3 text-base font-semibold transition-colors h-9 border border-stroke bg-white text-ink hover:border-mist hover:bg-paper active:bg-line"
+            className="ml-auto inline-flex h-9 flex-none items-center justify-center gap-1.5 rounded border border-ink-line px-3 text-base font-semibold text-white transition-colors hover:border-mist hover:bg-ink-soft active:bg-ink"
           >
             <ListIcon size={16} />
             {/* One piece of text, so the flex gap doesn't open up between the words. */}
@@ -402,15 +403,15 @@ export function MapPage() {
             </div>
           )
         )}
-        <div className="mt-3 text-sm text-muted">{status}</div>
+        <div className="mt-3 text-sm text-mist">{status}</div>
         {notice && (
-          <div role="status" className="mt-3 flex items-start gap-2 rounded border border-line bg-paper px-3 py-2 text-base">
+          <div role="status" className="mt-3 flex items-start gap-2 rounded bg-ink-soft px-3 py-2 text-base">
             <p className="min-w-0 flex-1">{notice}</p>
             <button
               type="button"
               onClick={() => setNotice(null)}
               aria-label="Dismiss"
-              className="-mr-1 grid size-6 flex-none place-items-center rounded text-muted hover:bg-line hover:text-ink"
+              className="-mr-1 grid size-6 flex-none place-items-center rounded text-mist hover:bg-ink-line hover:text-white"
             >
               <CloseIcon size={14} />
             </button>

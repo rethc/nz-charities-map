@@ -85,7 +85,7 @@ const LAYER = {
 const CLICKABLE = [LAYER.clusters, LAYER.points]
 
 /** Clusters and shared-address stacks: Fluent's brand blue. */
-const INK = '#0f6cbd'
+const INK = '#1a242c'
 /** Points stay clustered up to this zoom; beyond it every charity is drawn. */
 const CLUSTER_MAX_ZOOM = 14
 /** Clusters up to this size fetch their members so a click can fit them exactly. */

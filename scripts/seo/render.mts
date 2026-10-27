@@ -158,7 +158,7 @@ function layout(
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(page.description)}">
 <link rel="canonical" href="${esc(url)}">
-<meta name="theme-color" content="#ffffff">
+<meta name="theme-color" content="#1a242c">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta property="og:type" content="website">

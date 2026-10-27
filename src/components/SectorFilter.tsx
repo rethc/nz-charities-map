@@ -14,14 +14,14 @@ interface SectorFilterProps {
 
 const pill =
   'inline-flex h-9 flex-none items-center gap-2 rounded-full border px-3 text-base whitespace-nowrap transition-colors'
-const pillOff = 'border-stroke bg-white text-ink hover:border-mist hover:bg-paper'
-const pillOn = 'border-brand-line bg-brand-tint text-brand-pressed font-semibold'
+const pillOff = 'border-ink-line text-white hover:border-mist hover:bg-ink-soft'
+const pillOn = 'border-brand bg-brand text-white font-semibold'
 const textButton =
-  'inline-flex h-9 items-center px-1 text-base text-link underline-offset-2 hover:text-brand-pressed hover:underline'
+  'inline-flex h-9 items-center px-1 text-base font-semibold text-white underline decoration-mist underline-offset-4 hover:decoration-white'
 
 /** Holds the filter's place while the charities load, so the header doesn't jump when they arrive. */
 export function SectorFilterSkeleton() {
-  return <span className="block h-9 w-32 animate-pulse rounded-full bg-line motion-reduce:animate-none" aria-hidden="true" />
+  return <span className="block h-9 w-32 animate-pulse rounded-full bg-ink-soft motion-reduce:animate-none" aria-hidden="true" />
 }
 
 /**

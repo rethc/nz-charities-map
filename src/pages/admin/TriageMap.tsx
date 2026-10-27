@@ -36,7 +36,7 @@ interface TriageMapProps {
 }
 
 /** Clusters and shared-address stacks: Fluent's brand blue. */
-const INK = '#0f6cbd'
+const INK = '#1a242c'
 const KOWHAI = '#f2b705'
 const GREY = '#7A8589'
 const AERIAL = 'linz-aerial'

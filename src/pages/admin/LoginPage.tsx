@@ -28,7 +28,7 @@ function friendlyError(message: string): string {
 }
 
 const input =
-  'mt-1 h-10 w-full rounded border border-stroke border-b-stroke-strong bg-white px-3 text-sm placeholder:text-muted hover:border-mist focus:border-b-brand focus:shadow-[inset_0_-1px_0_var(--color-brand)] focus:outline-none'
+  'mt-1 h-10 w-full rounded border border-stroke border-b-stroke-strong bg-white px-3 text-base placeholder:text-muted hover:border-mist focus:border-b-brand focus:shadow-[inset_0_-1px_0_var(--color-brand)] focus:outline-none'
 
 export default function LoginPage() {
   const auth = useSession()
@@ -93,7 +93,7 @@ export default function LoginPage() {
                 setMode(m)
                 setStatus({ state: 'idle' })
               }}
-              className={`rounded-lg py-2 text-sm font-semibold ${mode === m ? 'bg-white shadow-sm' : 'text-muted hover:text-ink'}`}
+              className={`rounded py-2 text-base font-semibold ${mode === m ? 'bg-white shadow-sm' : 'text-muted hover:text-ink'}`}
             >
               {m === 'link' ? 'Email link' : 'Password'}
             </button>

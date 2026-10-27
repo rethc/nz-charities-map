@@ -8,6 +8,7 @@ import {
   Button,
   Caption1,
   Card,
+  createLightTheme,
   createTableColumn,
   DataGrid,
   DataGridBody,
@@ -31,7 +32,7 @@ import {
   Text,
   Title3,
   tokens,
-  webLightTheme,
+  type BrandVariants,
   type TableColumnDefinition,
   type TableColumnId,
   type Theme,
@@ -102,15 +103,46 @@ const showDate = (s: string | null) => {
 }
 const num = (v: unknown) => (typeof v === 'number' ? v : Number(v ?? 0))
 
-/** Fluent's light theme with the site's 16px body text: easier to read than Fluent's 14px. */
+/** The site's teal-blue as a Fluent brand ramp: 80 is the main colour, lower numbers darker. */
+const brand: BrandVariants = {
+  10: '#001a24', 20: '#002533', 30: '#003142', 40: '#003d52', 50: '#004a63', 60: '#005775', 70: '#006a8e', 80: '#007ea8',
+  90: '#1a8db4', 100: '#3a9cc0', 110: '#5aaccb', 120: '#7abcd6', 130: '#9bcde1', 140: '#bcdeeb', 150: '#dbeef5', 160: '#eef7fa',
+}
+/** Fluent's light theme in the site's colours, with 16px body text: easier to read than Fluent's 14px. */
 const theme: Theme = {
-  ...webLightTheme,
+  ...createLightTheme(brand),
+  colorNeutralForeground1: '#1a242c',
+  colorNeutralForeground2: '#2f3e46',
+  colorNeutralForeground3: '#4a5a63',
+  colorNeutralBackground3: '#f5f8f9',
+  colorNeutralStroke2: '#ddedf3',
   fontSizeBase200: '14px',
   lineHeightBase200: '20px',
   fontSizeBase300: '16px',
   lineHeightBase300: '22px',
   fontSizeBase400: '18px',
   lineHeightBase400: '24px',
+}
+/** The dark bar along the top, as on the map and browse pages: white text, an orange focus ring. */
+const barTheme: Partial<Theme> = {
+  colorNeutralBackground1: '#1a242c',
+  colorNeutralBackground1Hover: '#2a4148',
+  colorNeutralBackground1Pressed: '#0a1418',
+  colorSubtleBackgroundHover: '#2a4148',
+  colorSubtleBackgroundPressed: '#0a1418',
+  colorNeutralForeground1: '#ffffff',
+  colorNeutralForeground1Hover: '#ffffff',
+  colorNeutralForeground1Pressed: '#ffffff',
+  colorNeutralForeground2: '#ffffff',
+  colorNeutralForeground2Hover: '#ffffff',
+  colorNeutralForeground2Pressed: '#ffffff',
+  colorNeutralForeground2BrandHover: '#ffffff',
+  colorNeutralForeground2BrandPressed: '#ffffff',
+  colorNeutralForeground3: '#94a8b2',
+  colorNeutralStroke1: '#4a6470',
+  colorNeutralStroke1Hover: '#94a8b2',
+  colorNeutralStroke1Pressed: '#94a8b2',
+  colorStrokeFocus2: '#fbb36a',
 }
 /** Chart text: labels, and the numbers along an axis. */
 const LABEL = 14
@@ -125,9 +157,8 @@ const useStyles = makeStyles({
     gap: '8px 16px',
     padding: '8px 16px',
     backgroundColor: tokens.colorNeutralBackground1,
-    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
-    flex: 'none',
   },
+  bar: { flex: 'none' },
   brand: { display: 'flex', alignItems: 'center', gap: '10px' },
   appNav: { marginLeft: 'auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 8px' },
   email: { color: tokens.colorNeutralForeground3, '@media (max-width: 640px)': { display: 'none' } },
@@ -266,6 +297,7 @@ function Returns({ email }: { email: string | null }) {
 
   return (
     <FluentProvider theme={theme} className={s.root}>
+      <FluentProvider theme={barTheme} className={s.bar}>
       <header className={s.appBar}>
         <div className={s.brand}>
           <BrandMark size={24} />
@@ -285,6 +317,7 @@ function Returns({ email }: { email: string | null }) {
           </Button>
         </nav>
       </header>
+      </FluentProvider>
 
       <div className={s.scroll}>
         <main className={s.page}>

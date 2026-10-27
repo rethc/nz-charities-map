@@ -323,24 +323,24 @@ function Triage({ email }: { email: string | null }) {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex flex-none flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-white px-4 py-2.5 text-ink">
+      <header className="on-ink flex flex-none flex-wrap items-center gap-x-4 gap-y-2 bg-ink px-4 py-2.5 text-white">
         <div className="flex items-center gap-2.5">
           <BrandMark size={26} />
           <h1 className="font-display text-base leading-tight font-semibold">Location review</h1>
         </div>
-        {load.status === 'ready' && <p className="text-sm text-muted">{formatCount(queueTotal)} to review</p>}
+        {load.status === 'ready' && <p className="text-sm text-mist">{formatCount(queueTotal)} to review</p>}
         <nav aria-label="Account" className="ml-auto flex items-center gap-4 text-base">
-          <Link to="/admin/returns" className="rounded px-2 py-1 font-semibold text-ink-soft hover:bg-paper hover:text-ink">
+          <Link to="/admin/returns" className="rounded px-2 py-1 font-semibold text-white hover:bg-ink-soft">
             Return checks
           </Link>
-          <Link to="/" className="rounded px-2 py-1 font-semibold text-ink-soft hover:bg-paper hover:text-ink">
+          <Link to="/" className="rounded px-2 py-1 font-semibold text-white hover:bg-ink-soft">
             Public map
           </Link>
-          {email && <span className="hidden text-muted sm:inline">{email}</span>}
+          {email && <span className="hidden text-mist sm:inline">{email}</span>}
           <button
             type="button"
             onClick={() => void supabase.auth.signOut()}
-            className="rounded border border-stroke bg-white px-3 py-1 font-semibold hover:border-mist hover:bg-paper"
+            className="rounded border border-ink-line px-3 py-1 font-semibold hover:border-mist hover:bg-ink-soft"
           >
             Sign out
           </button>
@@ -363,7 +363,7 @@ function Triage({ email }: { email: string | null }) {
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               placeholder="Filter by name, CC number or address"
-              className="h-9 w-full rounded border border-stroke border-b-stroke-strong bg-white px-3 text-sm placeholder:text-muted hover:border-mist focus:border-b-brand focus:shadow-[inset_0_-1px_0_var(--color-brand)] focus:outline-none"
+              className="h-9 w-full rounded border border-stroke border-b-stroke-strong bg-white px-3 text-base placeholder:text-muted hover:border-mist focus:border-b-brand focus:shadow-[inset_0_-1px_0_var(--color-brand)] focus:outline-none"
             />
             {load.status === 'ready' && queue.length > 0 && <p className="text-sm text-muted">{queueCountText}</p>}
           </div>
@@ -460,7 +460,7 @@ function Triage({ email }: { email: string | null }) {
                         }}
                         autoComplete="off"
                         spellCheck={false}
-                        className="h-9 min-w-0 flex-1 rounded border border-stroke border-b-stroke-strong bg-white px-3 text-sm placeholder:text-muted hover:border-mist focus:border-b-brand focus:shadow-[inset_0_-1px_0_var(--color-brand)] focus:outline-none"
+                        className="h-9 min-w-0 flex-1 rounded border border-stroke border-b-stroke-strong bg-white px-3 text-base placeholder:text-muted hover:border-mist focus:border-b-brand focus:shadow-[inset_0_-1px_0_var(--color-brand)] focus:outline-none"
                       />
                       <button
                         type="submit"
@@ -524,7 +524,7 @@ function Triage({ email }: { email: string | null }) {
                         value={reason}
                         onChange={(e) => setReason(e.target.value)}
                         placeholder="For example: PO Box only, no street address"
-                        className="h-9 w-full rounded border border-stroke border-b-stroke-strong bg-white px-3 text-sm placeholder:text-muted hover:border-mist focus:border-b-brand focus:shadow-[inset_0_-1px_0_var(--color-brand)] focus:outline-none"
+                        className="h-9 w-full rounded border border-stroke border-b-stroke-strong bg-white px-3 text-base placeholder:text-muted hover:border-mist focus:border-b-brand focus:shadow-[inset_0_-1px_0_var(--color-brand)] focus:outline-none"
                       />
                       <p className="text-sm text-muted">
                         It leaves the queue and stays off the map until its address changes on the register.
