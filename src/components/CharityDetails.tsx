@@ -1,6 +1,7 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { useCharityDetail } from '../hooks/useCharityDetail'
 import { directionsUrl, formatAddress, registerUrl, type CharityPoint } from '../lib/charities'
+import { isSocialPage, socialLinks } from '../lib/socials'
 import { BackIcon, CheckIcon, CloseIcon, DirectionsIcon, ExternalIcon, LinkIcon } from './Icons'
 
 interface CommonProps {
@@ -104,7 +105,9 @@ export function CharityDetails({
   const headingRef = useFocusOnMount<HTMLHeadingElement>(focusOnMount)
   const topRef = useStartAtTop<HTMLElement>()
   const info = detail.status === 'ready' ? detail.detail : null
-  const website = webLink(info?.website)
+  // A website that is really a Facebook page (or the like) is listed with the socials instead.
+  const website = isSocialPage(info?.website) ? null : webLink(info?.website)
+  const socials = socialLinks(info?.socials, info?.website)
   const tel = info?.phone ? telHref(info.phone) : null
   const summary = point.isGroup ? 'group summary' : 'charity summary'
 
@@ -272,6 +275,26 @@ export function CharityDetails({
                 <ExternalIcon size={14} className="flex-none" />
                 <NewTab />
               </a>
+            </dd>
+          </>
+        )}
+        {socials.length > 0 && (
+          <>
+            <dt className={fieldName}>Social</dt>
+            <dd className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+              {socials.map((social, i) => (
+                <Fragment key={social.name}>
+                  {i > 0 && (
+                    <span className="text-muted" aria-hidden="true">
+                      ·
+                    </span>
+                  )}
+                  <a href={social.href} target="_blank" rel="noopener noreferrer" className={textLink}>
+                    {social.name}
+                    <NewTab />
+                  </a>
+                </Fragment>
+              ))}
             </dd>
           </>
         )}

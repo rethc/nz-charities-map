@@ -4,6 +4,7 @@
  * key and row level security as the map itself, so a page can't show anything the map doesn't.
  */
 import { cleanSectorName } from '../../src/lib/sectors.ts'
+import { isSocialPage, socialLinks, type SocialLink } from '../../src/lib/socials.ts'
 
 export interface Charity {
   cc: string
@@ -20,7 +21,11 @@ export interface Charity {
   purpose: string | null
   activity: string | null
   beneficiary: string | null
+  phone: string | null
+  email: string | null
+  /** Its own website: a website that is a Facebook page or the like is in `socials` instead. */
   website: string | null
+  socials: SocialLink[]
   isGroup: boolean
   /** CC number of the registered group this charity is a member of. */
   groupCc: string | null
@@ -47,13 +52,19 @@ export interface Row {
   purpose?: string | null
   activity?: string | null
   beneficiary?: string | null
+  phone?: string | null
+  email?: string | null
   website?: string | null
+  socials?: unknown
   is_group?: boolean | null
   group_cc?: string | null
 }
 
 const BASIC_COLUMNS = 'cc_number,name,sector,street,suburb,city,postcode,coordinates,last_synced_at'
-const DETAIL_COLUMNS = `${BASIC_COLUMNS},purpose,activity,beneficiary,website,is_group,group_cc`
+const DETAIL_COLUMNS = `${BASIC_COLUMNS},purpose,activity,beneficiary,phone,email,website,is_group,group_cc`
+const SOCIAL_COLUMNS = `${DETAIL_COLUMNS},socials`
+/** Newest first: a database that hasn't had a migration yet refuses its columns, so the next set is tried. */
+const COLUMN_SETS = [SOCIAL_COLUMNS, DETAIL_COLUMNS, BASIC_COLUMNS]
 const PAGE_SIZE = 1000
 const PARALLEL = 4
 
@@ -90,11 +101,18 @@ function webAddress(value: string | null | undefined): string | null {
   }
 }
 
+/** Email addresses become mailto: links, so only plain ones get through (the sync's own rule). */
+function emailAddress(value: string | null | undefined): string | null {
+  const v = text(value)
+  return v && /^[^@\s<>()",;:]+@[^@\s<>()",;:]+\.[A-Za-z]{2,}$/.test(v) ? v : null
+}
+
 export function toCharity(row: Row): Charity | null {
   const point = row.coordinates?.coordinates
   if (!Array.isArray(point) || typeof point[0] !== 'number' || typeof point[1] !== 'number') return null
   // CC numbers become page addresses, so only the register's own format gets through.
   if (!/^CC\d+(-\d+)?$/.test(row.cc_number)) return null
+  const website = webAddress(row.website)
   return {
     cc: row.cc_number,
     name: row.name.trim(),
@@ -109,7 +127,10 @@ export function toCharity(row: Row): Charity | null {
     purpose: text(row.purpose),
     activity: text(row.activity),
     beneficiary: text(row.beneficiary),
-    website: webAddress(row.website),
+    phone: text(row.phone),
+    email: emailAddress(row.email),
+    website: isSocialPage(website) ? null : website,
+    socials: socialLinks(row.socials, website),
     isGroup: row.is_group === true,
     groupCc: text(row.group_cc),
   }
@@ -126,13 +147,14 @@ async function loadRows(supabaseUrl: string, headers: Record<string, string>): P
 
   // The first page also asks for the total, so a server that returns fewer rows per page
   // than asked for can't make the list stop early.
-  let columns = DETAIL_COLUMNS
+  let columns = COLUMN_SETS[0]!
   let res = await get(pageUrl(columns, 0), { ...headers, Prefer: 'count=exact' })
-  if (res.status === 400) {
-    // A database from before the charity_details_and_groups migration refuses the newer columns.
+  for (const fewer of COLUMN_SETS.slice(1)) {
+    if (res.status !== 400) break
+    // A database from before a migration (charity_socials, charity_details_and_groups) refuses its columns.
     const body = (await res.json().catch(() => null)) as { code?: string } | null
     if (body?.code !== '42703') throw new Error(`Loading charities failed (HTTP 400): ${JSON.stringify(body)}`)
-    columns = BASIC_COLUMNS
+    columns = fewer
     res = await get(pageUrl(columns, 0), { ...headers, Prefer: 'count=exact' })
   }
   if (!res.ok) throw await failure(res, 'Loading charities')

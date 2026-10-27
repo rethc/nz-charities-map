@@ -302,8 +302,14 @@ h3 {
   color: var(--muted);
 }
 
-.more .sep {
+.more .sep,
+.socials .sep {
   margin: 0 0.5rem;
+}
+
+/* A narrow screen wraps between the links, never inside "X (Twitter)". */
+.socials a {
+  white-space: nowrap;
 }
 
 /* Sector colour: the same dot as the map's legend. */

@@ -90,6 +90,9 @@ ODATA_FIELDS = (
     "Telephone1",
     "CharityEmailAddress",
     "WebSiteURL",
+    "FacebookName",
+    "TwitterName",
+    "SocialNetworkName",
     "GroupId",
 )
 # Registered groups live in their own entity, with some of the columns named differently.
@@ -123,6 +126,8 @@ GROUP_FIELD_ALIASES = {
 CC_NUMBER_RE = re.compile(r"CC\d+(?:-\d+)?")
 # Columns added by the charity_details_and_groups migration.
 DETAIL_COLUMNS = ("purpose", "activity", "beneficiary", "phone", "email", "website", "is_group", "group_cc")
+# Added by the charity_socials migration.
+SOCIAL_COLUMNS = ("socials",)
 PURPOSE_MAX_CHARS = 1200
 ODATA_PAGE_SIZE = 1000  # the service caps un-flagged queries at 1000 rows
 
@@ -195,6 +200,7 @@ class SourceCharity:
     phone: str | None = None
     email: str | None = None
     website: str | None = None
+    socials: list[str] | None = None  # https links to its social pages, one per platform
     is_group: bool = False
     group_cc: str | None = None     # the registered group this charity is a member of
 
@@ -214,7 +220,7 @@ class SourceCharity:
             "last_synced_at": synced_at,
         }
         if details:
-            row |= {column: getattr(self, column) for column in DETAIL_COLUMNS}
+            row |= {column: getattr(self, column) for column in (*DETAIL_COLUMNS, *SOCIAL_COLUMNS)}
         for column in skip:
             row.pop(column, None)
         return row
@@ -301,6 +307,147 @@ def clean_website(value: Any) -> str | None:
     except ValueError:
         return None
     return text if _HOSTNAME_RE.fullmatch(host) else None
+
+
+# Social pages. The register has three free-text fields for them, and people type full links,
+# links without https://, @handles, bare handles, page titles ("Ellesmere Golf Club") or "N/A".
+# Only what can become a working link on a known platform is kept, one link per platform.
+# The map and the static pages label each link by its address (src/lib/socials.ts), so a
+# platform added here needs adding there too.
+
+# (host pattern, platform, the host links are written with), in the order they're shown
+_SOCIAL_HOSTS: tuple[tuple[re.Pattern[str], str, str], ...] = (
+    (re.compile(r"(?:[a-z-]+\.)?facebook\.com|facebook\.co\.nz|fb\.com"), "facebook", "www.facebook.com"),
+    (re.compile(r"fb\.me"), "facebook", "fb.me"),
+    (re.compile(r"instagram\.com|instagr\.am"), "instagram", "www.instagram.com"),
+    (re.compile(r"(?:mobile\.)?twitter\.com|x\.com"), "x", "x.com"),
+    (re.compile(r"(?:[a-z]{2}\.)?linkedin\.com"), "linkedin", "www.linkedin.com"),
+    (re.compile(r"(?:m\.)?youtube\.com"), "youtube", "www.youtube.com"),
+    (re.compile(r"youtu\.be"), "youtube", "youtu.be"),
+    (re.compile(r"(?:m\.)?tiktok\.com"), "tiktok", "www.tiktok.com"),
+    (re.compile(r"bsky\.app"), "bluesky", "bsky.app"),
+    (re.compile(r"linktr\.ee"), "linktree", "linktr.ee"),
+    (re.compile(r"givealittle\.co\.nz"), "givealittle", "givealittle.co.nz"),
+)
+_SOCIAL_ORDER = list(dict.fromkeys(platform for _, platform, _ in _SOCIAL_HOSTS))
+# Misspelt hosts seen in the register ("wwwfacebook.com", "www.facebook/groups/…", "instgram.com").
+_SOCIAL_TYPOS = {
+    "facebook": "facebook.com", "fackbook.com": "facebook.com", "facebok.com": "facebook.com",
+    "instagram": "instagram.com", "instgram.com": "instagram.com", "instragram.com": "instagram.com",
+    "linkedin": "linkedin.com", "linkden.com": "linkedin.com", "twitter": "twitter.com",
+}
+# How a bare handle becomes a link, per platform. LinkedIn has no single handle form, so it needs a link.
+_SOCIAL_HANDLES: dict[str, tuple[re.Pattern[str], str]] = {
+    "facebook": (re.compile(r"[A-Za-z0-9][A-Za-z0-9.-]{4,79}"), "https://www.facebook.com/{}"),
+    "instagram": (re.compile(r"[A-Za-z0-9._]{3,30}"), "https://www.instagram.com/{}"),
+    "x": (re.compile(r"[A-Za-z0-9_]{3,15}"), "https://x.com/{}"),
+    "tiktok": (re.compile(r"[A-Za-z0-9._]{3,24}"), "https://www.tiktok.com/@{}"),
+    "youtube": (re.compile(r"[A-Za-z0-9._-]{3,30}"), "https://www.youtube.com/@{}"),
+}
+# Words that name a platform ("Instagram: lovetheone", "twitter@WhiritoaSLSC").
+_SOCIAL_WORDS = {"facebook": "facebook", "fb": "facebook", "instagram": "instagram", "insta": "instagram",
+                 "ig": "instagram", "twitter": "x", "tiktok": "tiktok", "youtube": "youtube", "linkedin": "linkedin"}
+_NOT_HANDLES = {"no", "nil", "none", "nope", "null", "pending", "unknown", "yes", "nothing", "not", "page",
+                "facebookpage", "website", "email", "wechat", "whatsapp", "instragram", "instgram", "linkedln"}
+# Pages on these sites that aren't anyone's account: a search, a login, someone's settings.
+_NOT_ACCOUNTS = {"search", "settings", "login", "home", "home.php", "hashtag", "sharer", "sharer.php", "l.php",
+                 "story.php", "photo.php", "permalink.php", "help", "marketplace", "notifications", "messages",
+                 "explore", "accounts", "results", "feed", "intent", "i"}
+_LOOKS_LIKE_URL = re.compile(r"(?:https?:/+|www\.?)\S|[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}(?:/|$)", re.I)
+_ENDS_IN_DOMAIN = re.compile(r"\.(?:com|org|net|nz|au|uk|io|info|co)$", re.I)
+_INVISIBLE = re.compile(r"[​-‍⁠﻿]")
+
+
+def _social_host(host: str) -> tuple[str, str] | None:
+    """(platform, the host to write) for a social site's host, or None."""
+    host = host.lower().rstrip(".")
+    host = re.sub(r"^www\.?", "", host)
+    host = _SOCIAL_TYPOS.get(host, host)
+    for pattern, platform, canonical in _SOCIAL_HOSTS:
+        if pattern.fullmatch(host):
+            return platform, canonical
+    return None
+
+
+def social_link(text: str) -> tuple[str, str] | None:
+    """(platform, https link) for one written-out address on a social site, or None.
+    Tracking parameters are dropped ("?fref=ts", "?igshid=…"); a bare front page isn't a link to anyone."""
+    text = text.strip("()[]<>'\",;")
+    text = re.sub(r"^https?:/*", "https://", text, flags=re.I)  # also "https:/www.facebook.com/…"
+    if not text.startswith("https://"):
+        text = f"https://{text}"
+    try:
+        parts = urllib.parse.urlsplit(text)
+        host = parts.hostname or ""
+    except ValueError:
+        return None
+    found = _social_host(host)
+    if not found:
+        return None
+    platform, canonical = found
+    path = re.sub(r"/{2,}", "/", parts.path).rstrip("/.")
+    if not path or path.split("/")[1].lower() in _NOT_ACCOUNTS:
+        return None
+    # Only these pages are found by their query: facebook.com/profile.php?id=…, youtube.com/watch?v=…
+    keep = {"/profile.php": "id", "/watch": "v"}.get(path)
+    values = urllib.parse.parse_qs(parts.query).get(keep, []) if keep else []
+    query = f"?{keep}={urllib.parse.quote(values[0], safe='')}" if values else ""
+    if keep and not query:
+        return None
+    path = urllib.parse.quote(urllib.parse.unquote(path), safe="/@._-~!$&'()*+,;=:")
+    return platform, f"https://{canonical}{path}{query}"
+
+
+def _platform_named(token: str) -> str | None:
+    """The platform a word names: "Instagram", "fb", or a bare host like "twitter.com"."""
+    word = token.lower()
+    if word in _SOCIAL_WORDS:
+        return _SOCIAL_WORDS[word]
+    found = _social_host(word) if "." in word else None
+    return found[0] if found else None
+
+
+def _social_from_handle(text: str, platform: str | None) -> tuple[str, str] | None:
+    """A handle, alone or with its platform named ("@hagleypreschool", "Instagram - uoafsae47",
+    "twitter@WhiritoaSLSC"). Among other words, only a handle written with its @ is picked out."""
+    tokens = [t for t in re.split(r"[\s|,;:/()]+|(?=@)", text)
+              if t and not re.fullmatch(r"[-–—.@]+|https?|www", t, re.I)]
+    named = {p for t in tokens if (p := _platform_named(t))}
+    rest = [t for t in tokens if not _platform_named(t)]
+    if len(rest) > 1 and len(ats := {t for t in rest if t.startswith("@")}) == 1:
+        rest = list(ats)
+    if len(named) > 1 or len(rest) != 1:
+        return None  # a page title, a sentence, or two accounts
+    platform = next(iter(named), platform)
+    if platform not in _SOCIAL_HANDLES:
+        return None  # the general field gave no platform: don't guess one
+    handle = rest[0].lstrip("@").rstrip(".")
+    pattern, link = _SOCIAL_HANDLES[platform]
+    if (not pattern.fullmatch(handle) or not re.search(r"[A-Za-z]", handle)
+            or handle.lower() in _NOT_HANDLES or _ENDS_IN_DOMAIN.search(handle)):
+        return None
+    return platform, link.format(handle)
+
+
+def clean_socials(facebook: Any, twitter: Any, other: Any, website: str | None = None) -> list[str] | None:
+    """Links to a charity's social pages, at most one per platform, from the register's
+    FacebookName, TwitterName and SocialNetworkName fields, and its website when that's a
+    social page too. The first field to give a platform wins."""
+    found: dict[str, str] = {}
+    # (value, the platform a bare handle belongs to, whether a bare handle counts at all)
+    fields = ((facebook, "facebook", True), (twitter, "x", True), (other, None, True), (website, None, False))
+    for value, platform, handles in fields:
+        text = clean_text(_INVISIBLE.sub("", value) if isinstance(value, str) else value)
+        if not text:
+            continue
+        words = re.split(r"[\s|,;]+", text)
+        links = [link for w in words if _LOOKS_LIKE_URL.match(w) and (link := social_link(w))]
+        if not links and handles and (link := _social_from_handle(text, platform)):
+            links = [link]
+        for name, url in links:
+            found.setdefault(name, url)
+    return [found[name] for name in _SOCIAL_ORDER if name in found] or None
+
 
 
 def ascii_fold(text: str) -> str:
@@ -825,6 +972,7 @@ def to_source_charity(
     status = (record.get("RegistrationStatus") or "Registered").strip().lower()
     is_group = bool(record.get("IsGroup"))
     purpose = clean_text(record.get("CharitablePurpose"))
+    website = clean_website(record.get("WebSiteURL"))
     return SourceCharity(
         cc_number=cc,
         name=name,
@@ -841,7 +989,10 @@ def to_source_charity(
         beneficiary=_looked_up(beneficiaries or {}, record.get("MainBeneficiaryId")),
         phone=clean_phone(record.get("Telephone1")),
         email=clean_email(record.get("CharityEmailAddress")),
-        website=clean_website(record.get("WebSiteURL")),
+        website=website,
+        # groups have no social fields in the register; a website on a social site counts too
+        socials=clean_socials(record.get("FacebookName"), record.get("TwitterName"),
+                              record.get("SocialNetworkName"), website),
         is_group=is_group,
         # a group's own GroupId is its identity, not a membership
         group_cc=None if is_group else _looked_up(group_numbers or {}, record.get("GroupId")),
@@ -1280,10 +1431,10 @@ def last_watermark(sb) -> datetime | None:
     return parse_odata_datetime(res.data[0]["source_watermark"]) if res.data else None
 
 
-def has_detail_columns(sb) -> bool:
-    """False until the charity_details_and_groups migration has been applied."""
+def has_detail_columns(sb, columns: Iterable[str] = DETAIL_COLUMNS) -> bool:
+    """False until the migration that added `columns` (by default charity_details_and_groups) has been applied."""
     try:
-        sb.table("charities").select(",".join(DETAIL_COLUMNS)).limit(1).execute()
+        sb.table("charities").select(",".join(columns)).limit(1).execute()
     except Exception as exc:  # PostgREST: 42703, "column charities.purpose does not exist"
         if "42703" in str(exc) or "does not exist" in str(exc):
             return False
@@ -1583,6 +1734,9 @@ def main(argv: list[str] | None = None) -> int:
         # a lookup that failed this run mustn't blank out what's stored
         skip = [column for column, lookup in
                 (("sector", sectors), ("activity", activities), ("beneficiary", beneficiaries)) if not lookup]
+        if details and not has_detail_columns(sb, SOCIAL_COLUMNS):
+            log.warning("The charity_socials migration hasn't been applied — syncing without social links")
+            skip += SOCIAL_COLUMNS
         stats.upserted = upsert_charities(
             sb, [c.db_row(synced_at, details=details, skip=skip) for c in registered.values()])
         log.info("Upserted %s charities", stats.upserted)

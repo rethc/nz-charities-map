@@ -53,6 +53,12 @@ const mapHref = (params: Record<string, string>) => `/?${new URLSearchParams(par
 const registerUrl = (cc: string) => `https://register.charities.govt.nz/Charity/${encodeURIComponent(cc)}`
 const directionsUrl = (c: Charity) => `https://www.google.com/maps/dir/?api=1&destination=${c.lat},${c.lon}`
 
+/** Same rule as the map's popup: a single plain number is a link; "0800 SALLIES" or two numbers stay as text. */
+export function telHref(phone: string): string | null {
+  const digits = phone.replace(/\D/g, '').length
+  return /^[\d\s()+.-]+$/.test(phone) && digits >= 7 && digits <= 15 ? `tel:${phone.replace(/[^\d+]/g, '')}` : null
+}
+
 const numberFormat = new Intl.NumberFormat('en-NZ')
 const n = (value: number) => numberFormat.format(value)
 const dateFormat = new Intl.DateTimeFormat('en-NZ', {
@@ -267,9 +273,18 @@ export function charityPage(site: Site, ctx: PageContext, c: Charity): string {
     details.push(`<dt>Part of</dt><dd>${name}</dd>`)
   }
   details.push(`<dt>Address</dt><dd>${address ? esc(address) : '<span class="muted">Not listed</span>'}</dd>`)
+  if (c.phone) {
+    const tel = telHref(c.phone)
+    details.push(`<dt>Phone</dt><dd>${tel ? `<a href="${esc(tel)}">${esc(c.phone)}</a>` : esc(c.phone)}</dd>`)
+  }
+  if (c.email) details.push(`<dt>Email</dt><dd><a href="${esc(`mailto:${c.email}`)}">${esc(c.email)}</a></dd>`)
   if (c.website) {
     const host = new URL(c.website).host.replace(/^www\./i, '')
     details.push(`<dt>Website</dt><dd><a href="${esc(c.website)}" rel="noopener">${esc(host)}</a></dd>`)
+  }
+  if (c.socials.length) {
+    const links = c.socials.map((s) => `<a href="${esc(s.href)}" rel="noopener">${esc(s.name)}</a>`)
+    details.push(`<dt>Social</dt><dd class="socials">${links.join('<span class="sep" aria-hidden="true">·</span>')}</dd>`)
   }
 
   const sections: string[] = []
@@ -312,11 +327,13 @@ ${rest > 0 ? `<p class="more"><a href="${esc(mapHref({ cc: c.cc }))}">See all ${
     '@id': `${ctx.siteUrl}${paths.charity(c.cc)}#charity`,
     name: c.name,
     identifier: { '@type': 'PropertyValue', propertyID: 'NZ Charities Register number', value: c.cc },
-    sameAs: [registerUrl(c.cc)],
+    sameAs: [registerUrl(c.cc), ...c.socials.map((s) => s.href)],
     geo: { '@type': 'GeoCoordinates', latitude: c.lat, longitude: c.lon },
   }
   if (c.purpose) org.description = c.purpose
   if (c.website) org.url = c.website
+  if (c.phone) org.telephone = c.phone
+  if (c.email) org.email = c.email
   if (address) {
     org.address = {
       '@type': 'PostalAddress',

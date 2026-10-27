@@ -31,8 +31,12 @@ export function rpcGet<T>(fn: string, args: Record<string, string | number>, sig
 
 const BASIC_COLUMNS = 'cc_number,name,sector,street,suburb,city,postcode'
 const DETAIL_COLUMNS = `${BASIC_COLUMNS},purpose,activity,beneficiary,phone,email,website`
-/** Turned off for the visit if the database turns out not to have the detail columns yet. */
-let withDetails = true
+/**
+ * Newest first. A database that hasn't had a migration yet (charity_socials, charity_details_and_groups)
+ * refuses its columns, so the next set is tried, and the visit carries on from there.
+ */
+const COLUMN_SETS = [`${DETAIL_COLUMNS},socials`, DETAIL_COLUMNS, BASIC_COLUMNS]
+let columnSet = 0
 
 export async function selectCharity(cc: string, signal?: AbortSignal): Promise<CharityDetail | null> {
   const select = (columns: string) =>
@@ -40,16 +44,13 @@ export async function selectCharity(cc: string, signal?: AbortSignal): Promise<C
       `charities?${new URLSearchParams({ select: columns, cc_number: `eq.${cc}`, limit: '1' })}`,
       signal,
     )
-  if (withDetails) {
+  for (let set = columnSet; ; set++) {
     try {
-      return (await select(DETAIL_COLUMNS))[0] ?? null
-    } catch (err) {
-      if (signal?.aborted) throw err
-      // Before the charity_details_and_groups migration the newer columns are refused: ask for the basics.
-      const rows = await select(BASIC_COLUMNS)
-      withDetails = false
+      const rows = await select(COLUMN_SETS[set]!)
+      columnSet = set // only once a smaller set has worked, so a network blip doesn't stick
       return rows[0] ?? null
+    } catch (err) {
+      if (signal?.aborted || set === COLUMN_SETS.length - 1) throw err
     }
   }
-  return (await select(BASIC_COLUMNS))[0] ?? null
 }

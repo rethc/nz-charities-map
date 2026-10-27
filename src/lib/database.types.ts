@@ -42,6 +42,8 @@ export type Database = {
           email: string | null
           /** Always an http(s) address (checked by the database). */
           website: string | null
+          /** https links to its social pages, one per platform (checked by the database). Added by charity_socials. */
+          socials: string[] | null
           /** A registered group: a parent charity and its members under one registration. */
           is_group: boolean
           /** For a member charity, the cc_number of its registered group. */
@@ -67,6 +69,7 @@ export type Database = {
           phone?: string | null
           email?: string | null
           website?: string | null
+          socials?: string[] | null
           is_group?: boolean
           group_cc?: string | null
         }
@@ -90,6 +93,7 @@ export type Database = {
           phone?: string | null
           email?: string | null
           website?: string | null
+          socials?: string[] | null
           is_group?: boolean
           group_cc?: string | null
         }
@@ -163,7 +167,7 @@ export type CharityDetail = Pick<
   CharityRow,
   'cc_number' | 'name' | 'sector' | 'street' | 'suburb' | 'city' | 'postcode'
 > &
-  Partial<Pick<CharityRow, 'purpose' | 'activity' | 'beneficiary' | 'phone' | 'email' | 'website'>>
+  Partial<Pick<CharityRow, 'purpose' | 'activity' | 'beneficiary' | 'phone' | 'email' | 'website' | 'socials'>>
 
 /** One row of `get_charities_in_view(..., format => 'compact')`. `group_cc` arrived with v2. */
 export type CharityTuple = [

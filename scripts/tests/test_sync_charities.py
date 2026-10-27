@@ -208,6 +208,13 @@ def test_member_charity_is_linked_to_its_group():
 
     row = charity.db_row("2026-10-13T00:00:00+00:00")
     assert row["group_cc"] == "CC21777" and row["is_group"] is False and row["phone"] == "04 245 0900"
+    assert row["socials"] is None  # the record has no social fields
+    with_socials = sc.to_source_charity({**record, "FacebookName": "@wellingtoncitymission",
+                                         "SocialNetworkName": "Instagram: wgtncitymission"}, *lookups)
+    assert with_socials.db_row("t")["socials"] == [
+        "https://www.facebook.com/wellingtoncitymission", "https://www.instagram.com/wgtncitymission"]
+    # before the charity_socials migration the column is left out
+    assert "socials" not in with_socials.db_row("t", skip=sc.SOCIAL_COLUMNS)
     # before the migration the table has none of the detail columns
     assert set(charity.db_row("t", details=False)) == {
         "cc_number", "name", "sector", "address_raw", "street", "suburb", "city", "postcode", "last_synced_at"}
@@ -232,6 +239,53 @@ def test_member_charity_is_linked_to_its_group():
 )
 def test_clean_website_only_lets_web_addresses_through(raw, expected):
     assert sc.clean_website(raw) == expected
+
+
+@pytest.mark.parametrize(
+    ("facebook", "twitter", "other", "expected"),
+    [
+        # full links, with tracking and odd hosts tidied up, and http made https
+        ("http://www.facebook.com/parent2parentnz/?fref=ts", None, None, ["https://www.facebook.com/parent2parentnz"]),
+        ("https:/www.facebook.com/burnsideparktennis/", None, None, ["https://www.facebook.com/burnsideparktennis"]),
+        ("m.facebook.com/Some.Page", None, None, ["https://www.facebook.com/Some.Page"]),
+        ("wwwfacebook.com/trust", None, None, ["https://www.facebook.com/trust"]),
+        ("https://www.facebook.com/profile.php?id=100011399219751&fref=ts", None, None,
+         ["https://www.facebook.com/profile.php?id=100011399219751"]),
+        ("www.facebook.com/groups/ClanMathesonNewZealand", None, None,
+         ["https://www.facebook.com/groups/ClanMathesonNewZealand"]),
+        (None, "https://twitter.com/95bFM?ref_src=twsrc%5Egoogle", None, ["https://x.com/95bFM"]),
+        (None, None, "https://nz.linkedin.com/company/sport-taranaki/",
+         ["https://www.linkedin.com/company/sport-taranaki"]),
+        # handles, alone or with the platform named
+        ("@waikatopotters", None, None, ["https://www.facebook.com/waikatopotters"]),
+        ("jetboatworld", None, None, ["https://www.facebook.com/jetboatworld"]),
+        (None, "twitter@WhiritoaSLSC", None, ["https://x.com/WhiritoaSLSC"]),
+        (None, "https://twitter.com @WKAFC​", None, ["https://x.com/WKAFC"]),
+        (None, None, "Instagram - uoafsae47", ["https://www.instagram.com/uoafsae47"]),
+        (None, None, "TikTok @io_raranga", ["https://www.tiktok.com/@io_raranga"]),
+        # one per platform, the Facebook field's first; shown Facebook, Instagram, X
+        ("@ourtrust", "@ourtrust", "www.facebook.com/other www.instagram.com/ourtrust",
+         ["https://www.facebook.com/ourtrust", "https://www.instagram.com/ourtrust", "https://x.com/ourtrust"]),
+        # not links to anyone: page titles, placeholders, searches, websites, emails, no platform named
+        ("Ellesmere Golf Club", "No", "Instagram: Motu Trails Cycleway", None),
+        ("N/A", "0", "Instagram", None),
+        ("https://www.facebook.com/search/top?q=akaroa", None, None, None),
+        ("https://www.facebook.com/", None, None, None),
+        ("FreeSlaves.org", None, "www.oranawildlifepark.co.nz", None),
+        ("info@trust.org.nz", None, "also remu.org.nz@gmail.com", None),
+        (None, "@GreatBarrierIslandEnvironmentTrust", "@brainsaver", None),
+        ("javascript:alert(1)", None, None, None),
+        (None, None, None, None),
+    ],
+)
+def test_clean_socials_makes_working_links_or_nothing(facebook, twitter, other, expected):
+    assert sc.clean_socials(facebook, twitter, other) == expected
+
+
+def test_a_website_on_a_social_site_counts_as_that_platform():
+    assert sc.clean_socials(None, None, None, "https://m.facebook.com/ourtrust") == ["https://www.facebook.com/ourtrust"]
+    assert sc.clean_socials("@first", None, None, "https://www.facebook.com/second") == ["https://www.facebook.com/first"]
+    assert sc.clean_socials(None, None, None, "https://www.ourtrust.org.nz") is None
 
 
 def test_clean_email_and_phone():
@@ -260,7 +314,7 @@ def test_has_detail_columns_detects_an_unmigrated_database():
             self.error = error
 
         def select(self, columns):
-            assert "group_cc" in columns and "website" in columns
+            assert ("group_cc" in columns and "website" in columns) or columns == "socials"
             return self
 
         def limit(self, _n):
@@ -280,6 +334,7 @@ def test_has_detail_columns_detects_an_unmigrated_database():
             return Query(self.error)
 
     assert sc.has_detail_columns(Client())
+    assert sc.has_detail_columns(Client(), sc.SOCIAL_COLUMNS) is True
     missing = Exception("{'message': 'column charities.purpose does not exist', 'code': '42703'}")
     assert not sc.has_detail_columns(Client(missing))
     with pytest.raises(RuntimeError):  # anything else is a real failure

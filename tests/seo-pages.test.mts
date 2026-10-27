@@ -36,7 +36,10 @@ function charity(over: Partial<Charity> = {}): Charity {
     purpose: 'To help people.',
     activity: null,
     beneficiary: null,
+    phone: null,
+    email: null,
     website: null,
+    socials: [],
     isGroup: false,
     groupCc: null,
     ...over,
@@ -94,6 +97,36 @@ test('register rows: only usable points, register-style numbers and web links ge
   assert.equal(toCharity(row({ cc_number: '../../etc' })), null)
   assert.equal(toCharity(row({ coordinates: null })), null)
   assert.equal(toCharity(row({ cc_number: 'CC11026-0' }))!.cc, 'CC11026-0')
+})
+
+test('register rows: contact details, and social pages named by their address', () => {
+  const c = toCharity(
+    row({
+      phone: ' 04 245 0900 ',
+      email: 'enquiries@wcm.org.nz',
+      website: 'https://example.org',
+      socials: ['https://x.com/wcm', 'https://www.facebook.com/wcm', 'javascript:alert(1)', 'https://evil.example/x', 42],
+    }),
+  )!
+  assert.equal(c.phone, '04 245 0900')
+  assert.equal(c.email, 'enquiries@wcm.org.nz')
+  assert.deepEqual(c.socials, [
+    { name: 'Facebook', href: 'https://www.facebook.com/wcm' },
+    { name: 'X (Twitter)', href: 'https://x.com/wcm' },
+  ])
+  assert.equal(toCharity(row({ email: 'not an email' }))!.email, null)
+  assert.equal(toCharity(row({ email: 'a@b.org" onclick="x' }))!.email, null)
+
+  // A website that is a Facebook page is shown as the Facebook link, before the sync has run too.
+  const fb = toCharity(row({ website: 'http://m.facebook.com/ourtrust' }))!
+  assert.equal(fb.website, null)
+  assert.deepEqual(fb.socials, [{ name: 'Facebook', href: 'https://m.facebook.com/ourtrust' }])
+  // …unless the socials already have one.
+  const both = toCharity(row({ website: 'https://facebook.com/old', socials: ['https://www.facebook.com/new'] }))!
+  assert.deepEqual(both.socials, [{ name: 'Facebook', href: 'https://www.facebook.com/new' }])
+  // A database without the newer columns gives none of these.
+  const old = toCharity(row())!
+  assert.deepEqual([old.phone, old.email, old.socials], [null, null, []])
 })
 
 test('towns: spellings merge, small places get no page, every town lists all its charities', () => {
@@ -191,15 +224,48 @@ test('text from the register cannot break out of the page', () => {
     name: '<script>alert(1)</script> & "Friends"',
     purpose: '</script><img src=x onerror=alert(1)>',
     website: 'https://example.org/?a=1&b="2"',
+    phone: '<b>04</b> 245 0900',
+    socials: [{ name: 'Facebook', href: 'https://www.facebook.com/a"><b>' }],
   })
   const html = charityPage(siteOf([nasty]), ctx, nasty)
   assert.doesNotMatch(html, /<script>alert/)
   assert.doesNotMatch(html, /<img/)
+  assert.doesNotMatch(html, /<b>/)
   assert.equal(html.match(/<script/g)?.length, 1, 'only the structured data block')
   assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt; &amp; &quot;Friends&quot;/)
   const data = html.match(/<script type="application\/ld\+json">(.*?)<\/script>/)![1]!
   const parsed = JSON.parse(data) as { '@graph': Array<{ name?: string; description?: string }> }
   assert.equal(parsed['@graph'][0]!.description, '</script><img src=x onerror=alert(1)>')
+})
+
+test('a charity page lists its phone, email, website and social pages', () => {
+  const c = charity({
+    phone: '04 245 0900',
+    email: 'enquiries@wcm.org.nz',
+    website: 'https://wcm.org.nz/',
+    socials: [
+      { name: 'Facebook', href: 'https://www.facebook.com/wcm' },
+      { name: 'Instagram', href: 'https://www.instagram.com/wcm' },
+    ],
+  })
+  const html = charityPage(siteOf([c]), ctx, c)
+  assert.match(html, /<dt>Phone<\/dt><dd><a href="tel:042450900">04 245 0900<\/a><\/dd>/)
+  assert.match(html, /<dt>Email<\/dt><dd><a href="mailto:enquiries@wcm\.org\.nz">enquiries@wcm\.org\.nz<\/a><\/dd>/)
+  assert.match(html, /<dt>Website<\/dt><dd><a href="https:\/\/wcm\.org\.nz\/" rel="noopener">wcm\.org\.nz<\/a>/)
+  assert.match(html, /<dt>Social<\/dt><dd class="socials"><a href="https:\/\/www\.facebook\.com\/wcm" rel="noopener">Facebook<\/a>.*Instagram<\/a><\/dd>/)
+  const data = JSON.parse(html.match(/<script type="application\/ld\+json">(.*?)<\/script>/)![1]!) as {
+    '@graph': Array<{ telephone?: string; email?: string; sameAs?: string[] }>
+  }
+  const org = data['@graph'][0]!
+  assert.equal(org.telephone, '04 245 0900')
+  assert.equal(org.email, 'enquiries@wcm.org.nz')
+  assert.deepEqual(org.sameAs!.slice(1), ['https://www.facebook.com/wcm', 'https://www.instagram.com/wcm'])
+
+  // A number written with words stays as text; nothing is listed that the register doesn't have.
+  const wordy = charity({ phone: '0800 SALLIES' })
+  const plain = charityPage(siteOf([wordy]), ctx, wordy)
+  assert.match(plain, /<dt>Phone<\/dt><dd>0800 SALLIES<\/dd>/)
+  assert.doesNotMatch(plain, /<dt>(Email|Website|Social)<\/dt>/)
 })
 
 test('every page has its own canonical address and a description', () => {
