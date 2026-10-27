@@ -39,7 +39,7 @@ const SITEMAP_CHUNK = 25_000
 /** Folders this script owns in dist/, cleared before each run. */
 const OUTPUT_DIRS = ['browse', 'charity', 'in', 'region', 'sector', 'sitemaps']
 
-/** "/charity/CC12345/" → dist/charity/CC12345/index.html, which Netlify serves at that address. */
+/** "/charity/cc12345/" → dist/charity/cc12345/index.html, which Netlify serves at that address. */
 function writePage(urlPath: string, html: string) {
   const dir = path.join(dist, ...urlPath.split('/').filter(Boolean))
   fs.mkdirSync(dir, { recursive: true })

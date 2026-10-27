@@ -117,10 +117,10 @@ test('towns: spellings merge, small places get no page, every town lists all its
   assert.equal(site.townOf.has(charities[3]!.cc), false)
 
   const auckland = townPage(ctx, site.towns[0]!)
-  assert.equal(auckland.match(/href="\/charity\/CC\d+\/"/g)?.length, SECTOR_PAGES_OVER + 1, 'a big town lists them all')
+  assert.equal(auckland.match(/href="\/charity\/cc\d+\/"/g)?.length, SECTOR_PAGES_OVER + 1, 'a big town lists them all')
   assert.match(auckland, /href="\/in\/auckland\/health\/"/, 'and links to its sector pages')
   const nelson = townPage(ctx, site.towns[1]!)
-  assert.equal(nelson.match(/href="\/charity\/CC\d+\/"/g)?.length, 3)
+  assert.equal(nelson.match(/href="\/charity\/cc\d+\/"/g)?.length, 3)
   assert.doesNotMatch(nelson, /href="\/in\/nelson\/health\/"/, 'a small town has no sector pages')
 })
 
@@ -178,7 +178,10 @@ test('groups: a member names its group, and a group lists its members', () => {
   const group = charity({ name: 'Big Group', isGroup: true })
   const member = charity({ name: 'Little Member', groupCc: group.cc, lon: 174 })
   const site = siteOf([group, member], { [group.cc]: 'Big Group' })
-  assert.match(charityPage(site, ctx, member), new RegExp(`Part of</dt><dd><a href="/charity/${group.cc}/">Big Group`))
+  assert.match(
+    charityPage(site, ctx, member),
+    new RegExp(`Part of</dt><dd><a href="/charity/${group.cc.toLowerCase()}/">Big Group`),
+  )
   assert.match(charityPage(site, ctx, group), /Member charities on the map/)
   assert.match(charityPage(site, ctx, group), /Little Member/)
 })
@@ -203,7 +206,9 @@ test('every page has its own canonical address and a description', () => {
   const c = charity({ cc: 'CC77777' })
   const site = siteOf([c, charity(), charity()])
   const page = charityPage(site, ctx, c)
-  assert.match(page, /<link rel="canonical" href="https:\/\/example\.test\/charity\/CC77777\/">/)
+  // Lower case: Netlify redirects addresses with capitals, and a redirecting address isn't indexed.
+  assert.match(page, /<link rel="canonical" href="https:\/\/example\.test\/charity\/cc77777\/">/)
+  assert.doesNotMatch(page, /href="\/charity\/CC/)
   assert.match(page, /<title>Test Trust – Nelson \| NZ Charities Map<\/title>/)
   assert.match(page, /<meta name="description" content="Registered charity in Nelson \(CC77777\)\. To help people\.">/)
   assert.match(browsePage(site, ctx), /<link rel="canonical" href="https:\/\/example\.test\/browse\/">/)

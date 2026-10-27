@@ -27,7 +27,7 @@ The map runs in JavaScript, so search engines and AI crawlers can't read it on t
 `vite build`, `npm run build` runs `scripts/seo/build-pages.mts`, which reads the same public data
 as the map and writes plain HTML pages into `dist/`:
 
-* `/charity/CC12345/`: one page per charity, with its purpose, address and nearby charities
+* `/charity/cc12345/`: one page per charity, with its purpose, address and nearby charities. Every address is lower case, because Netlify redirects addresses with capitals to lower case.
 * `/region/wellington/` and `/region/wellington/lower-hutt-city/`: Stats NZ's 16 regions (plus the Chatham Islands) and their districts and cities, with Auckland split into its 21 local board areas. Each charity is placed by its pin, using the official boundaries saved in `scripts/seo/areas.json` (© Stats NZ, CC BY 4.0). Stats NZ updates them each year: run `npm run seo:areas` and commit the new file.
 * `/in/nelson/`: one page per town with 3 or more charities, listing all of them by sector. "Wellington CBD", "Auckland Central" and the like count as the town itself (see `townKey` in `scripts/seo/model.mts`). Towns with more than 400 also get one page per sector (`/in/auckland/health/`)
 * `/sector/health/` and `/browse/`: the index pages (the map's header links to `/browse/`)

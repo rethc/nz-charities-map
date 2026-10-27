@@ -29,7 +29,9 @@ export const esc = (value: string) => value.replace(/[&<>"']/g, (ch) => ESCAPES[
 
 export const paths = {
   browse: '/browse/',
-  charity: (cc: string) => `/charity/${cc}/`,
+  // Lower case: Netlify answers /charity/CC12345/ with a redirect to /charity/cc12345/, and search
+  // engines won't index an address that redirects.
+  charity: (cc: string) => `/charity/${cc.toLowerCase()}/`,
   town: (town: Town) => `/in/${town.slug}/`,
   townSector: (town: Town, sector: Sector) => `/in/${town.slug}/${sector.slug}/`,
   sector: (sector: Sector) => `/sector/${sector.slug}/`,
