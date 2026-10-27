@@ -6,7 +6,7 @@ export function NotFound() {
     <FullScreenMessage title="There's no page at this address">
       <p>Check the link, or go back to the map and search for a charity by name or registration number.</p>
       <p>
-        <Link to="/" className="font-semibold underline underline-offset-4">
+        <Link to="/" className="text-link underline-offset-2 hover:text-brand-pressed hover:underline">
           Go to the map
         </Link>
       </p>

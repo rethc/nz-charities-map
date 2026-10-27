@@ -35,7 +35,8 @@ interface TriageMapProps {
   onPlacePin: (lonLat: LonLat) => void
 }
 
-const INK = '#12333a'
+/** Clusters and shared-address stacks: Fluent's brand blue. */
+const INK = '#0f6cbd'
 const KOWHAI = '#f2b705'
 const GREY = '#7A8589'
 const AERIAL = 'linz-aerial'

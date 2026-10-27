@@ -23,11 +23,11 @@ export function RouteError() {
         <button
           type="button"
           onClick={() => window.location.reload()}
-          className="rounded-lg bg-ink px-4 py-2 font-semibold text-paper hover:bg-ink-soft"
+          className="inline-flex items-center justify-center gap-1.5 rounded px-3 text-sm font-semibold transition-colors h-8 bg-brand text-white hover:bg-brand-hover active:bg-brand-pressed"
         >
           Reload
         </button>
-        <Link to="/" className="self-center font-semibold underline underline-offset-4">
+        <Link to="/" className="self-center text-link underline-offset-2 hover:text-brand-pressed hover:underline">
           Go to the map
         </Link>
       </div>

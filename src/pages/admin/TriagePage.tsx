@@ -323,24 +323,24 @@ function Triage({ email }: { email: string | null }) {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="on-ink flex flex-none flex-wrap items-center gap-x-4 gap-y-2 bg-ink px-4 py-3 text-paper">
+      <header className="flex flex-none flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-white px-4 py-2.5 text-ink">
         <div className="flex items-center gap-2.5">
           <BrandMark size={26} />
-          <h1 className="text-lg leading-tight font-bold">Location review</h1>
+          <h1 className="font-display text-base leading-tight font-semibold">Location review</h1>
         </div>
-        {load.status === 'ready' && <p className="text-sm text-mist">{formatCount(queueTotal)} to review</p>}
+        {load.status === 'ready' && <p className="text-sm text-muted">{formatCount(queueTotal)} to review</p>}
         <nav aria-label="Account" className="ml-auto flex items-center gap-4 text-sm">
-          <Link to="/admin/returns" className="font-semibold underline decoration-ink-line underline-offset-4 hover:decoration-kowhai">
+          <Link to="/admin/returns" className="rounded px-2 py-1 font-semibold text-ink-soft hover:bg-paper hover:text-ink">
             Return checks
           </Link>
-          <Link to="/" className="font-semibold underline decoration-ink-line underline-offset-4 hover:decoration-kowhai">
+          <Link to="/" className="rounded px-2 py-1 font-semibold text-ink-soft hover:bg-paper hover:text-ink">
             Public map
           </Link>
-          {email && <span className="hidden text-mist sm:inline">{email}</span>}
+          {email && <span className="hidden text-muted sm:inline">{email}</span>}
           <button
             type="button"
             onClick={() => void supabase.auth.signOut()}
-            className="rounded-lg border border-ink-line px-3 py-1.5 font-semibold hover:border-mist"
+            className="rounded border border-stroke bg-white px-3 py-1 font-semibold hover:border-mist hover:bg-paper"
           >
             Sign out
           </button>
@@ -363,7 +363,7 @@ function Triage({ email }: { email: string | null }) {
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               placeholder="Filter by name, CC number or address"
-              className="h-10 w-full rounded-lg border border-line px-3 text-[0.9375rem] placeholder:text-muted focus:border-ink"
+              className="h-9 w-full rounded border border-stroke border-b-stroke-strong bg-white px-3 text-sm placeholder:text-muted hover:border-mist focus:border-b-brand focus:shadow-[inset_0_-1px_0_var(--color-brand)] focus:outline-none"
             />
             {load.status === 'ready' && queue.length > 0 && <p className="text-sm text-muted">{queueCountText}</p>}
           </div>
@@ -377,7 +377,7 @@ function Triage({ email }: { email: string | null }) {
                     onClick={() => setSelectedId(q.id)}
                     aria-current={current ? 'true' : undefined}
                     className={`block w-full border-b border-l-4 border-b-line px-4 py-3 text-left focus-visible:-outline-offset-2 ${
-                      current ? 'border-l-kowhai bg-paper' : 'border-l-transparent hover:bg-paper'
+                      current ? 'border-l-brand bg-brand-tint' : 'border-l-transparent hover:bg-paper'
                     }`}
                   >
                     <span className="block leading-snug font-semibold break-words">{q.name}</span>
@@ -413,7 +413,7 @@ function Triage({ email }: { email: string | null }) {
                 <div className="min-h-0 flex-1 overflow-y-auto p-4">
                   <div className="flex items-start gap-3">
                     <div className="min-w-0 flex-1">
-                      <h2 id="review-title" className="text-lg leading-snug font-bold break-words">
+                      <h2 id="review-title" className="font-display text-lg leading-snug font-semibold break-words">
                         {item.name}
                       </h2>
                       <p className="text-sm text-muted">
@@ -460,12 +460,12 @@ function Triage({ email }: { email: string | null }) {
                         }}
                         autoComplete="off"
                         spellCheck={false}
-                        className="h-10 min-w-0 flex-1 rounded-lg border border-line px-3 text-[0.9375rem] focus:border-ink"
+                        className="h-9 min-w-0 flex-1 rounded border border-stroke border-b-stroke-strong bg-white px-3 text-sm placeholder:text-muted hover:border-mist focus:border-b-brand focus:shadow-[inset_0_-1px_0_var(--color-brand)] focus:outline-none"
                       />
                       <button
                         type="submit"
                         disabled={geo.status === 'loading'}
-                        className="inline-flex h-10 flex-none items-center gap-2 rounded-lg border border-ink px-3 text-sm font-semibold hover:bg-paper disabled:opacity-60"
+                        className="inline-flex h-9 flex-none items-center gap-1.5 rounded border border-stroke bg-white px-3 text-sm font-semibold hover:border-mist hover:bg-paper disabled:opacity-60"
                       >
                         {geo.status === 'loading' && <Spinner size={14} />}
                         Test geocode
@@ -486,7 +486,7 @@ function Triage({ email }: { email: string | null }) {
                               className={`flex w-full items-start gap-3 rounded-lg px-2 py-2 text-left hover:bg-paper ${chosen ? 'bg-paper' : ''}`}
                             >
                               <span
-                                className={`grid size-6 flex-none place-items-center rounded-full border-2 border-ink text-xs font-bold ${chosen ? 'bg-kowhai' : 'bg-white'}`}
+                                className={`grid size-6 flex-none place-items-center rounded-full border-2 text-xs font-semibold ${chosen ? 'border-brand bg-brand text-white' : 'border-ink bg-white'}`}
                               >
                                 {i + 1}
                               </span>
@@ -524,7 +524,7 @@ function Triage({ email }: { email: string | null }) {
                         value={reason}
                         onChange={(e) => setReason(e.target.value)}
                         placeholder="For example: PO Box only, no street address"
-                        className="h-10 w-full rounded-lg border border-line px-3 text-[0.9375rem] placeholder:text-muted focus:border-ink"
+                        className="h-9 w-full rounded border border-stroke border-b-stroke-strong bg-white px-3 text-sm placeholder:text-muted hover:border-mist focus:border-b-brand focus:shadow-[inset_0_-1px_0_var(--color-brand)] focus:outline-none"
                       />
                       <p className="text-sm text-muted">
                         It leaves the queue and stays off the map until its address changes on the register.
@@ -533,7 +533,7 @@ function Triage({ email }: { email: string | null }) {
                         <button
                           type="submit"
                           disabled={busy}
-                          className="inline-flex items-center gap-2 rounded-lg bg-alert px-4 py-2 font-semibold text-white hover:bg-[#962019] disabled:opacity-60"
+                          className="inline-flex items-center gap-1.5 rounded bg-alert px-4 py-1.5 text-sm font-semibold text-white hover:bg-[#a80c19] disabled:opacity-60"
                         >
                           {busy && <Spinner size={14} />}
                           Mark as not locatable
@@ -572,7 +572,7 @@ function Triage({ email }: { email: string | null }) {
                           type="button"
                           onClick={() => void save()}
                           disabled={!pin || busy}
-                          className="inline-flex items-center gap-2 rounded-lg bg-fern px-4 py-2 font-semibold text-white hover:bg-fern-dark disabled:cursor-not-allowed disabled:opacity-50"
+                          className="inline-flex items-center justify-center gap-1.5 rounded bg-brand px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-hover active:bg-brand-pressed disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {busy && <Spinner size={14} />}
                           Save &amp; verify
@@ -587,7 +587,7 @@ function Triage({ email }: { email: string | null }) {
                         <button
                           type="button"
                           onClick={() => setMode('unlocatable')}
-                          className="rounded-lg px-3 py-2 text-sm font-semibold text-alert hover:bg-alert-tint"
+                          className="rounded px-3 py-1.5 text-sm font-semibold text-alert hover:bg-alert-tint"
                         >
                           Can't locate
                         </button>
@@ -609,12 +609,12 @@ function Triage({ email }: { email: string | null }) {
                 )}
                 {load.status === 'error' && (
                   <>
-                    <h2 className="text-lg font-bold">Couldn't load the review queue</h2>
+                    <h2 className="font-display text-lg font-semibold">Couldn't load the review queue</h2>
                     <p className="mt-1 text-[0.9375rem]">{load.message}</p>
                     <button
                       type="button"
                       onClick={retryLoad}
-                      className="mt-3 rounded-lg bg-ink px-4 py-2 font-semibold text-paper hover:bg-ink-soft"
+                      className="mt-3 inline-flex items-center justify-center gap-1.5 rounded bg-brand px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-hover active:bg-brand-pressed"
                     >
                       Try again
                     </button>
@@ -622,12 +622,12 @@ function Triage({ email }: { email: string | null }) {
                 )}
                 {load.status === 'ready' && queue.length === 0 && queueTotal > 0 && (
                   <>
-                    <h2 className="text-lg font-bold">This batch is done</h2>
+                    <h2 className="font-display text-lg font-semibold">This batch is done</h2>
                     <p className="mt-1 text-[0.9375rem]">{formatCount(queueTotal)} more are waiting.</p>
                     <button
                       type="button"
                       onClick={retryLoad}
-                      className="mt-3 rounded-lg bg-ink px-4 py-2 font-semibold text-paper hover:bg-ink-soft"
+                      className="mt-3 inline-flex items-center justify-center gap-1.5 rounded bg-brand px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-hover active:bg-brand-pressed"
                     >
                       Load the next batch
                     </button>
@@ -635,7 +635,7 @@ function Triage({ email }: { email: string | null }) {
                 )}
                 {load.status === 'ready' && queue.length === 0 && queueTotal === 0 && (
                   <>
-                    <h2 className="text-lg font-bold">Nothing to review</h2>
+                    <h2 className="font-display text-lg font-semibold">Nothing to review</h2>
                     <p className="mt-1 text-[0.9375rem]">
                       Every charity with a street address has a place on the map. The nightly sync adds any it can't
                       place with confidence.

@@ -28,7 +28,7 @@ function friendlyError(message: string): string {
 }
 
 const input =
-  'mt-1 h-11 w-full rounded-xl border border-line bg-white px-3 text-base placeholder:text-muted focus:border-ink'
+  'mt-1 h-10 w-full rounded border border-stroke border-b-stroke-strong bg-white px-3 text-sm placeholder:text-muted hover:border-mist focus:border-b-brand focus:shadow-[inset_0_-1px_0_var(--color-brand)] focus:outline-none'
 
 export default function LoginPage() {
   const auth = useSession()
@@ -76,14 +76,14 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="mb-8 flex items-center gap-2.5">
           <BrandMark size={30} />
-          <p className="font-bold">NZ Charities Map</p>
+          <p className="font-semibold">NZ Charities Map</p>
         </div>
-        <h1 className="text-2xl leading-tight font-bold text-balance">Sign in to review locations</h1>
+        <h1 className="font-display text-2xl leading-tight font-semibold text-balance">Sign in to review locations</h1>
         <p className="mt-2 text-[0.9375rem] text-muted">
           For admins placing the charities the geocoder couldn't find with confidence.
         </p>
 
-        <div role="group" aria-label="Sign-in method" className="mt-6 grid grid-cols-2 gap-1 rounded-xl bg-line p-1">
+        <div role="group" aria-label="Sign-in method" className="mt-6 grid grid-cols-2 gap-1 rounded bg-paper p-1">
           {(['link', 'password'] as const).map((m) => (
             <button
               key={m}
@@ -101,7 +101,7 @@ export default function LoginPage() {
         </div>
 
         {status.state === 'sent' ? (
-          <div role="status" className="mt-6 rounded-xl border border-line bg-white p-4">
+          <div role="status" className="mt-6 rounded-2xl bg-white p-4 shadow-card">
             <p className="font-semibold">Check your inbox</p>
             <p className="mt-1 text-[0.9375rem]">
               We sent a sign-in link to {status.email}. Open it in this browser on this device, because the link only
@@ -148,14 +148,14 @@ export default function LoginPage() {
               </div>
             )}
             {status.state === 'error' && (
-              <p role="alert" className="rounded-lg bg-alert-tint px-3 py-2 text-[0.9375rem] text-alert">
+              <p role="alert" className="rounded border border-[#eeacb2] bg-alert-tint px-3 py-2 text-sm text-alert">
                 {status.message}
               </p>
             )}
             <button
               type="submit"
               disabled={busy}
-              className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-ink font-semibold text-paper hover:bg-ink-soft disabled:opacity-70"
+              className="flex h-10 w-full items-center justify-center gap-2 rounded bg-brand text-sm font-semibold text-white hover:bg-brand-hover active:bg-brand-pressed disabled:opacity-70"
             >
               {busy && <Spinner size={16} />}
               {mode === 'link' ? 'Email me a sign-in link' : 'Sign in'}

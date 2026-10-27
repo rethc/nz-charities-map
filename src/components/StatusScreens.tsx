@@ -14,10 +14,10 @@ export function FullScreenMessage({
     <main className="grid min-h-full place-items-center px-6 py-12">
       <div className="w-full max-w-md" role={busy ? 'status' : undefined} aria-live={busy ? 'polite' : undefined}>
         <div className="mb-5 flex items-center gap-3">
-          {busy ? <Spinner size={28} className="text-ink" /> : <BrandMark />}
-          <h1 className="text-xl font-bold text-balance">{title}</h1>
+          {busy ? <Spinner size={28} className="text-brand" /> : <BrandMark />}
+          <h1 className="font-display text-xl font-semibold text-balance">{title}</h1>
         </div>
-        {children && <div className="space-y-4 text-[0.9375rem] leading-relaxed text-ink">{children}</div>}
+        {children && <div className="space-y-4 text-sm leading-relaxed text-ink">{children}</div>}
       </div>
     </main>
   )

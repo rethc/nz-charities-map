@@ -16,10 +16,11 @@
     "test:functions": "node --test tests/geocode-function.test.mts",
     "test:pages": "node --test tests/seo-pages.test.mts",
     "seo:areas": "node scripts/seo/refresh-areas.mts",
-    "test":"npm run test:functions && npm run test:pages && npm run test:etl"
+    "test": "npm run test:functions && npm run test:pages && npm run test:etl"
   },
   "dependencies": {
-    "@fontsource-variable/roboto": "^5.3.0",
+    "@fluentui/react-components": "^9.74.9",
+    "@fluentui/react-icons": "^2.0.344",
     "@supabase/supabase-js": "^2.117.2",
     "maplibre-gl": "^6.11.2",
     "react": "^19.3.0",

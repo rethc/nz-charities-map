@@ -47,16 +47,12 @@ function writePage(urlPath: string, html: string) {
 }
 
 /**
- * browse.css gets the map's own Roboto font rules, so the pages use the font files the map has
- * already downloaded. Its name has no hash, so a style change doesn't change 28,000 pages.
+ * browse.css is copied as it is: the pages use the system's own font (Segoe UI on Windows), as
+ * the map does, so there are no font files. Its name has no hash, so a style change doesn't
+ * change 28,000 pages.
  */
-function writeStylesheet(indexHtml: string) {
-  const ownCss = fs.readFileSync(fileURLToPath(new URL('browse.css', import.meta.url)), 'utf8')
-  const appCssPath = indexHtml.match(/href="(\/assets\/[^"]+\.css)"/)?.[1]
-  const appCss = appCssPath ? fs.readFileSync(path.join(dist, appCssPath), 'utf8') : ''
-  const fonts = appCss.match(/@font-face\{[^}]*roboto-latin(?:-ext)?-wght-normal[^}]*\}/g) ?? []
-  if (fonts.length === 0) console.warn('  No Roboto font rules found in the app stylesheet: the pages fall back to system fonts.')
-  fs.writeFileSync(path.join(dist, 'browse.css'), `${fonts.join('\n')}\n${ownCss}`)
+function writeStylesheet() {
+  fs.copyFileSync(fileURLToPath(new URL('browse.css', import.meta.url)), path.join(dist, 'browse.css'))
 }
 
 function writeSitemaps(siteUrl: string, directory: string[], charities: string[]) {
@@ -131,7 +127,7 @@ async function main() {
   // The same visitor counter as the map, so these pages show up in the site's analytics too.
   const analytics = indexHtml.match(/<script[^>]*static\.cloudflareinsights\.com[^>]*><\/script>/)?.[0] ?? ''
   const ctx: PageContext = { siteUrl, analytics }
-  writeStylesheet(indexHtml)
+  writeStylesheet()
 
   const directory = ['/', paths.browse]
   writePage(paths.browse, browsePage(site, ctx))

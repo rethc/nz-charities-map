@@ -84,7 +84,7 @@ export function SearchBox({
       <label htmlFor={id} className="sr-only">
         Search charities by name or registration number
       </label>
-      <SearchIcon className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted" />
+      <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-muted" />
       <input
         id={id}
         ref={inputRef}
@@ -110,14 +110,14 @@ export function SearchBox({
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
         onKeyDown={onKeyDown}
-        className="h-12 w-full rounded-2xl bg-white pr-11 pl-11 text-base text-ink shadow-[inset_0_0_0_1px_rgb(18_51_58/0.06)] placeholder:text-muted disabled:opacity-70"
+        className="h-10 w-full rounded border border-stroke border-b-stroke-strong bg-white pr-11 pl-9 text-sm text-ink placeholder:text-muted hover:border-mist hover:border-b-ink-soft focus:border-b-brand focus:shadow-[inset_0_-1px_0_var(--color-brand)] focus:outline-none disabled:opacity-70"
       />
       {value ? (
         <button
           type="button"
           onClick={() => onChange('')}
           aria-label="Clear search"
-          className="absolute top-1/2 right-1.5 grid size-8 -translate-y-1/2 place-items-center rounded-lg text-muted hover:bg-paper hover:text-ink"
+          className="absolute top-1/2 right-1 grid size-8 -translate-y-1/2 place-items-center rounded text-muted hover:bg-paper hover:text-ink"
         >
           <CloseIcon size={16} />
         </button>
@@ -131,7 +131,7 @@ export function SearchBox({
       )}
 
       <div
-        className={`absolute inset-x-0 top-full z-20 mt-2 overflow-hidden rounded-2xl bg-white text-ink shadow-float ring-1 ring-ink/5 ${showList ? '' : 'hidden'}`}
+        className={`absolute inset-x-0 top-full z-20 mt-1 overflow-hidden rounded bg-white text-ink shadow-float ${showList ? '' : 'hidden'}`}
       >
         <div id={listId} role="listbox" aria-label="Matching charities" className="max-h-[min(22rem,50dvh)] overflow-y-auto">
           {options.map((p, i) => (

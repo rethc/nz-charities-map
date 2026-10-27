@@ -17,10 +17,10 @@ export interface PartOf {
   point: CharityPoint | null
 }
 
-const textLink = 'font-semibold underline decoration-ink/30 underline-offset-4 hover:decoration-ink'
+const textLink = 'text-link underline-offset-2 hover:text-brand-pressed hover:underline'
 const button =
-  'inline-flex grow items-center justify-center gap-2 rounded-xl px-3.5 py-2.5 text-[0.9375rem] font-semibold transition duration-150 active:scale-[0.98] motion-reduce:active:scale-100'
-const buttonQuiet = `${button} border border-line hover:border-ink/40 hover:bg-paper`
+  'inline-flex h-9 grow items-center justify-center gap-1.5 rounded px-3 text-sm font-semibold transition-colors'
+const buttonQuiet = `${button} border border-stroke bg-white text-ink hover:border-mist hover:bg-paper active:bg-line`
 const fieldName = 'text-sm text-muted'
 
 function useFocusOnMount<T extends HTMLElement>(enabled: boolean | undefined) {
@@ -175,7 +175,7 @@ export function CharityDetails({
           href={registerUrl(point.cc)}
           target="_blank"
           rel="noopener noreferrer"
-          className={`${button} basis-full bg-ink text-paper hover:bg-ink-soft roomy:basis-auto roomy:px-3`}
+          className={`${button} basis-full bg-brand text-white hover:bg-brand-hover active:bg-brand-pressed roomy:basis-auto roomy:px-3`}
         >
           Open {summary}
           <ExternalIcon size={16} />
@@ -433,7 +433,7 @@ function CopyLinkButton({ cc }: { cc: string }) {
       {state !== 'idle' && (
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute right-0 bottom-full mb-1.5 hidden rounded-md bg-ink px-2 py-1 text-xs font-semibold whitespace-nowrap text-paper roomy:block"
+          className="pointer-events-none absolute right-0 bottom-full mb-1.5 hidden rounded bg-white px-2.5 py-1 text-xs whitespace-nowrap text-ink shadow-float roomy:block"
         >
           {text}
         </span>

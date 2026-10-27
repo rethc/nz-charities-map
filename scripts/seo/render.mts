@@ -96,13 +96,13 @@ function formatAddress(c: Charity): string | null {
 const placeLabel = (site: Site, c: Charity) =>
   site.townOf.get(c.cc)?.name ?? (c.place ? townName(new Map([[c.place, 1]])) || null : null)
 
-// Icons: the same line drawings as src/components/Icons.tsx.
-const icon = (body: string, size = 18) =>
-  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${body}</svg>`
-const PIN = icon('<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>')
-const EXTERNAL = icon('<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>', 16)
-const DIRECTIONS = icon('<path d="m3 11 18-8-8 18-2-8-8-2z"/>', 16)
-const GLOBE = icon('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9s1.2-6.4 3.7-9z"/>', 16)
+// Icons: Microsoft's Fluent System Icons (MIT licence), the same as src/components/Icons.tsx.
+const icon = (body: string, size = 20) =>
+  `<svg width="${size}" height="${size}" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">${body}</svg>`
+const PIN = icon('<path d="M5.05 4.05a7 7 0 1 1 9.9 9.9l-1.13 1.12-2.43 2.37a2 2 0 0 1-2.64.12l-.14-.12-2.04-1.99-1.52-1.5a7 7 0 0 1 0-9.9m9.2.7a6 6 0 0 0-8.67 8.32l.17.18.58.57 2.98 2.9.09.08a1 1 0 0 0 1.2 0l.1-.08 2.22-2.17 1.32-1.3.18-.18a6 6 0 0 0-.18-8.31M10 6.26a2.75 2.75 0 1 1 0 5.5 2.75 2.75 0 0 1 0-5.5m0 1a1.75 1.75 0 1 0 0 3.5 1.75 1.75 0 0 0 0-3.5"/>')
+const EXTERNAL = icon('<path d="M6 4a2 2 0 0 0-2 2v8c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2v-2.5a.5.5 0 0 1 1 0V14a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3h2.5a.5.5 0 0 1 0 1zm5-.5c0-.28.22-.5.5-.5h5c.28 0 .5.22.5.5v5a.5.5 0 0 1-1 0V4.7l-4.15 4.15a.5.5 0 0 1-.7-.7L15.29 4H11.5a.5.5 0 0 1-.5-.5"/>', 16)
+const DIRECTIONS = icon('<path d="M7.88 1.88a3 3 0 0 1 4.24 0l6 6a3 3 0 0 1 0 4.24l-6 6a3 3 0 0 1-4.24 0l-6-6a3 3 0 0 1 0-4.24zm3.53.7a2 2 0 0 0-2.83 0l-6 6a2 2 0 0 0 0 2.83l6 6a2 2 0 0 0 2.83 0l6-6a2 2 0 0 0 0-2.83zm-.76 2.57c.2-.2.5-.2.7 0l2 2c.2.2.2.5 0 .7l-2 2a.5.5 0 0 1-.7-.7L11.79 8H10a2 2 0 0 0-2 2v3a.5.5 0 0 1-1 0v-3a3 3 0 0 1 3-3h1.8l-1.15-1.15a.5.5 0 0 1 0-.7"/>', 16)
+const GLOBE = icon('<path d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16m0-15c.66 0 1.4.59 2.02 1.9q.33.71.56 1.6H7.42q.23-.89.56-1.6C8.59 3.6 9.34 3 10 3M7.07 4.49q-.4.9-.68 2.01H3.94A7 7 0 0 1 7.7 3.38q-.36.5-.64 1.1M6.2 7.5a16 16 0 0 0 0 5H3.46a7 7 0 0 1 0-5zm.2 6q.26 1.12.68 2.01.28.61.64 1.1a7 7 0 0 1-3.77-3.11zm1.03 0h5.16a9 9 0 0 1-.56 1.6C11.41 16.4 10.66 17 10 17s-1.4-.59-2.02-1.9q-.33-.71-.56-1.6m5.37-1H7.21a15 15 0 0 1 0-5h5.58a15 15 0 0 1 0 5m.82 1h2.45a7 7 0 0 1-3.77 3.12q.36-.5.64-1.1.4-.9.68-2.02m2.93-1h-2.73a16 16 0 0 0 0-5h2.73a7 7 0 0 1 0 5m-4.25-9.12a7 7 0 0 1 3.77 3.12h-2.45a11 11 0 0 0-.68-2.01q-.28-.61-.64-1.1"/>', 16)
 /** A platform's one-colour logo (src/lib/socialIcons.ts), in the link's own colour. */
 const socialIcon = (key: SocialKey) =>
   `<svg width="16" height="16" viewBox="${SOCIAL_ICON_VIEWBOX}" fill="currentColor" aria-hidden="true" focusable="false">${SOCIAL_ICONS[key]
@@ -158,7 +158,7 @@ function layout(
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(page.description)}">
 <link rel="canonical" href="${esc(url)}">
-<meta name="theme-color" content="#12333a">
+<meta name="theme-color" content="#ffffff">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta property="og:type" content="website">

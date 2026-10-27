@@ -44,8 +44,7 @@ const ROOM_FOR_ATTRIBUTION = 28
 /** "Zoom to these" is offered when the matches are few enough to be worth framing. */
 const MAX_FIT = 5000
 
-const linkButton =
-  'font-semibold text-paper underline decoration-ink-line underline-offset-4 hover:decoration-kowhai'
+const linkButton = 'text-link underline-offset-2 hover:text-brand-pressed hover:underline'
 
 function selectionFromUrl(params: URLSearchParams): Selection | null {
   const cc = params.get('cc')?.trim().toUpperCase()
@@ -320,7 +319,7 @@ export function MapPage() {
   } else if (charities.status === 'error') {
     status = (
       <div role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <p className="text-paper">Couldn't load the charities. {charities.error}</p>
+        <p className="text-alert">Couldn't load the charities. {charities.error}</p>
         <button type="button" onClick={charities.retry} className={linkButton}>
           Try again
         </button>
@@ -359,16 +358,16 @@ export function MapPage() {
       <header
         ref={headerRef}
         // The side panel takes the header's place while it is open.
-        className={`on-ink absolute inset-x-0 top-0 z-20 rounded-b-3xl bg-ink px-4 pt-[max(env(safe-area-inset-top),0.875rem)] pb-3.5 text-paper shadow-float ring-1 ring-white/10 card:inset-x-auto card:top-4 card:left-[max(1rem,env(safe-area-inset-left))] card:w-[min(27rem,56vw)] card:rounded-3xl card:p-4 ${layout === 'side' && panel ? 'hidden' : ''}`}
+        className={`absolute inset-x-0 top-0 z-20 rounded-b-2xl bg-white px-4 pt-[max(env(safe-area-inset-top),0.875rem)] pb-3.5 text-ink shadow-float card:inset-x-auto card:top-4 card:left-[max(1rem,env(safe-area-inset-left))] card:w-[min(27rem,56vw)] card:rounded-2xl card:p-4 ${layout === 'side' && panel ? 'hidden' : ''}`}
       >
         <div className="mb-3 flex items-center gap-2.5">
           <BrandMark size={26} />
-          <h1 className="text-[1.0625rem] leading-tight font-bold tracking-tight">NZ Charities Map</h1>
+          <h1 className="font-display text-base leading-tight font-semibold">NZ Charities Map</h1>
           {/* A plain link, not a router one: the browse pages are static files built after the app (scripts/seo).
               Square-cornered with an icon, so it reads as a way to another page, not one of the round filter pills. */}
           <a
             href="/browse/"
-            className="ml-auto inline-flex flex-none items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-semibold text-paper ring-1 ring-ink-line transition-colors hover:bg-ink-soft hover:ring-mist"
+            className="ml-auto flex-none inline-flex items-center justify-center gap-1.5 rounded px-3 text-sm font-semibold transition-colors h-8 border border-stroke bg-white text-ink hover:border-mist hover:bg-paper active:bg-line"
           >
             <ListIcon size={16} />
             {/* One piece of text, so the flex gap doesn't open up between the words. */}
@@ -403,15 +402,15 @@ export function MapPage() {
             </div>
           )
         )}
-        <div className="mt-3 text-sm text-mist">{status}</div>
+        <div className="mt-3 text-sm text-muted">{status}</div>
         {notice && (
-          <div role="status" className="mt-3 flex items-start gap-2 rounded-lg bg-ink-soft px-3 py-2 text-sm">
+          <div role="status" className="mt-3 flex items-start gap-2 rounded border border-line bg-paper px-3 py-2 text-sm">
             <p className="min-w-0 flex-1">{notice}</p>
             <button
               type="button"
               onClick={() => setNotice(null)}
               aria-label="Dismiss"
-              className="-mr-1 grid size-6 flex-none place-items-center rounded text-mist hover:text-paper"
+              className="-mr-1 grid size-6 flex-none place-items-center rounded text-muted hover:bg-line hover:text-ink"
             >
               <CloseIcon size={14} />
             </button>

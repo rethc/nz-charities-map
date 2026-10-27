@@ -4,90 +4,41 @@ import type { SocialKey } from '../lib/socials'
 
 type IconProps = SVGProps<SVGSVGElement> & { size?: number }
 
-function Svg({ size = 18, children, ...rest }: IconProps) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-      {...rest}
-    >
-      {children}
-    </svg>
-  )
+/**
+ * Microsoft's Fluent System Icons (https://github.com/microsoft/fluentui-system-icons, MIT
+ * licence), the 20px regular set, drawn in the text's own colour.
+ */
+function fluent(paths: string[]) {
+  return function FluentIcon({ size = 20, ...rest }: IconProps) {
+    return (
+      <svg
+        width={size}
+        height={size}
+        viewBox="0 0 20 20"
+        fill="currentColor"
+        aria-hidden="true"
+        focusable="false"
+        {...rest}
+      >
+        {paths.map((d) => (
+          <path key={d} d={d} />
+        ))}
+      </svg>
+    )
+  }
 }
 
-export const SearchIcon = (p: IconProps) => (
-  <Svg {...p}>
-    <circle cx="11" cy="11" r="7" />
-    <path d="m20 20-3.5-3.5" />
-  </Svg>
-)
-
-export const CloseIcon = (p: IconProps) => (
-  <Svg {...p}>
-    <path d="M18 6 6 18M6 6l12 12" />
-  </Svg>
-)
-
-export const ExternalIcon = (p: IconProps) => (
-  <Svg {...p}>
-    <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
-  </Svg>
-)
-
-export const LinkIcon = (p: IconProps) => (
-  <Svg {...p}>
-    <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" />
-    <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" />
-  </Svg>
-)
-
-export const BackIcon = (p: IconProps) => (
-  <Svg {...p}>
-    <path d="M15 18l-6-6 6-6" />
-  </Svg>
-)
-
-export const DirectionsIcon = (p: IconProps) => (
-  <Svg {...p}>
-    <path d="m3 11 18-8-8 18-2-8-8-2z" />
-  </Svg>
-)
-
-export const PinIcon = (p: IconProps) => (
-  <Svg {...p}>
-    <path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z" />
-    <circle cx="12" cy="9.5" r="2.5" />
-  </Svg>
-)
-
-export const CheckIcon = (p: IconProps) => (
-  <Svg {...p}>
-    <path d="M5 12.5 10 17l9-10" />
-  </Svg>
-)
-
-export const ListIcon = (p: IconProps) => (
-  <Svg {...p}>
-    <path d="M9 6h11M9 12h11M9 18h11" />
-    <path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01" strokeWidth={3} />
-  </Svg>
-)
-
-export const LayersIcon = (p: IconProps) => (
-  <Svg {...p}>
-    <path d="m12 3 9 5-9 5-9-5 9-5z" />
-    <path d="m3 13 9 5 9-5" />
-  </Svg>
-)
+export const SearchIcon = fluent(['M13.73 14.44a6.5 6.5 0 1 1 .7-.7l3.42 3.4a.5.5 0 0 1-.63.77l-.07-.06zm-.71-.71A5.5 5.5 0 0 0 15 9.5a5.5 5.5 0 1 0-1.98 4.23'])
+export const CloseIcon = fluent(['m4.09 4.22.06-.07a.5.5 0 0 1 .63-.06l.07.06L10 9.29l5.15-5.14a.5.5 0 0 1 .63-.06l.07.06c.18.17.2.44.06.63l-.06.07L10.71 10l5.14 5.15c.18.17.2.44.06.63l-.06.07a.5.5 0 0 1-.63.06l-.07-.06L10 10.71l-5.15 5.14a.5.5 0 0 1-.63.06l-.07-.06a.5.5 0 0 1-.06-.63l.06-.07L9.29 10 4.15 4.85a.5.5 0 0 1-.06-.63l.06-.07z'])
+export const ExternalIcon = fluent(['M6 4a2 2 0 0 0-2 2v8c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2v-2.5a.5.5 0 0 1 1 0V14a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3h2.5a.5.5 0 0 1 0 1zm5-.5c0-.28.22-.5.5-.5h5c.28 0 .5.22.5.5v5a.5.5 0 0 1-1 0V4.7l-4.15 4.15a.5.5 0 0 1-.7-.7L15.29 4H11.5a.5.5 0 0 1-.5-.5'])
+export const LinkIcon = fluent(['M8 6a.5.5 0 0 1 .09 1H6a3 3 0 0 0-.2 6H8a.5.5 0 0 1 .09 1H6a4 4 0 0 1-.22-8H8m6 0a4 4 0 0 1 .22 8H12a.5.5 0 0 1-.09-1H14a3 3 0 0 0 .2-6H12a.5.5 0 0 1-.09-1H14M6 9.5h8a.5.5 0 0 1 .09 1H6a.5.5 0 0 1-.09-1zh8z'])
+export const BackIcon = fluent(['M9.16 16.87a.5.5 0 1 0 .67-.74L3.67 10.5H17.5a.5.5 0 0 0 0-1H3.67l6.16-5.63a.5.5 0 0 0-.67-.74L2.24 9.44a.75.75 0 0 0 0 1.11z'])
+export const DirectionsIcon = fluent(['M7.88 1.88a3 3 0 0 1 4.24 0l6 6a3 3 0 0 1 0 4.24l-6 6a3 3 0 0 1-4.24 0l-6-6a3 3 0 0 1 0-4.24zm3.53.7a2 2 0 0 0-2.83 0l-6 6a2 2 0 0 0 0 2.83l6 6a2 2 0 0 0 2.83 0l6-6a2 2 0 0 0 0-2.83zm-.76 2.57c.2-.2.5-.2.7 0l2 2c.2.2.2.5 0 .7l-2 2a.5.5 0 0 1-.7-.7L11.79 8H10a2 2 0 0 0-2 2v3a.5.5 0 0 1-1 0v-3a3 3 0 0 1 3-3h1.8l-1.15-1.15a.5.5 0 0 1 0-.7'])
+export const PinIcon = fluent(['M5.05 4.05a7 7 0 1 1 9.9 9.9l-1.13 1.12-2.43 2.37a2 2 0 0 1-2.64.12l-.14-.12-2.04-1.99-1.52-1.5a7 7 0 0 1 0-9.9m9.2.7a6 6 0 0 0-8.67 8.32l.17.18.58.57 2.98 2.9.09.08a1 1 0 0 0 1.2 0l.1-.08 2.22-2.17 1.32-1.3.18-.18a6 6 0 0 0-.18-8.31M10 6.26a2.75 2.75 0 1 1 0 5.5 2.75 2.75 0 0 1 0-5.5m0 1a1.75 1.75 0 1 0 0 3.5 1.75 1.75 0 0 0 0-3.5'])
+export const CheckIcon = fluent(['M3.37 10.17a.5.5 0 0 0-.74.66l4 4.5c.19.22.52.23.72.02l10.5-10.5a.5.5 0 0 0-.7-.7L7.02 14.27z'])
+export const ListIcon = fluent(['M2 4.5c0-.28.22-.5.5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5m0 10c0-.28.22-.5.5-.5h10a.5.5 0 0 1 0 1h-10a.5.5 0 0 1-.5-.5M2.5 9a.5.5 0 0 0 0 1h15a.5.5 0 0 0 0-1z'])
+export const LayersIcon = fluent(['M10.5 3.12a1 1 0 0 0-1 0L3.47 6.64a1 1 0 0 0 0 1.72l6.02 3.5a1 1 0 0 0 1 0l6.01-3.5a1 1 0 0 0 0-1.72zm-1 1.16a1 1 0 0 1 1 0L16 7.5l-5.5 3.2a1 1 0 0 1-1 0L3.99 7.5zM3.06 9.65l6.44 3.62a1 1 0 0 0 .98 0l6.44-3.62a1 1 0 0 1-.42 1.26l-6 3.5a1 1 0 0 1-1.01 0l-6.01-3.5a1 1 0 0 1-.42-1.26m0 2.45 6.44 3.63a1 1 0 0 0 .98 0l6.44-3.63a1 1 0 0 1-.42 1.26l-6 3.5a1 1 0 0 1-1.01 0l-6.01-3.5a1 1 0 0 1-.42-1.26'])
+export const ChevronDownIcon = fluent(['M15.85 7.65c.2.2.2.5 0 .7l-5.46 5.49a.55.55 0 0 1-.78 0L4.15 8.35a.5.5 0 1 1 .7-.7L10 12.8l5.15-5.16c.2-.2.5-.2.7 0'])
 
 /** The brand mark: a kōwhai ring on harbour ink. */
 export function BrandMark({ size = 28 }: { size?: number }) {
@@ -115,12 +66,6 @@ export function Spinner({ size = 18, className = '' }: { size?: number; classNam
     </svg>
   )
 }
-
-export const ChevronDownIcon = (p: IconProps) => (
-  <Svg {...p}>
-    <path d="m6 9 6 6 6-6" />
-  </Svg>
-)
 
 /** A platform's one-colour logo, in the text's own colour (shared with the static pages). */
 export function SocialIcon({ platform, size = 16, className }: { platform: SocialKey; size?: number; className?: string }) {

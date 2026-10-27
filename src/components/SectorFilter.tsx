@@ -17,10 +17,10 @@ const PRIMARY = 8
 
 const pill =
   'inline-flex h-8 flex-none items-center gap-2 rounded-full border px-3 text-sm whitespace-nowrap transition-colors'
-const pillOff = 'border-ink-line text-paper hover:border-mist'
-const pillOn = 'border-paper bg-paper text-ink font-semibold'
+const pillOff = 'border-stroke bg-white text-ink hover:border-mist hover:bg-paper'
+const pillOn = 'border-brand-line bg-brand-tint text-brand-pressed font-semibold'
 const textButton =
-  'inline-flex h-8 items-center px-1 text-sm font-semibold text-mist underline decoration-ink-line underline-offset-4 hover:text-paper'
+  'inline-flex h-8 items-center px-1 text-sm text-link underline-offset-2 hover:text-brand-pressed hover:underline'
 
 /** Holds the filter's place while the charities load, so the header doesn't jump when they arrive. */
 export function SectorFilterSkeleton() {
@@ -29,7 +29,7 @@ export function SectorFilterSkeleton() {
       {[6.5, 13.5, 17, 14, 8.5, 14.5, 10.5, 11.5, 15].map((rem, i) => (
         <span
           key={rem}
-          className={`h-8 animate-pulse rounded-full bg-ink-soft motion-reduce:animate-none ${i ? 'hidden pills:block' : ''}`}
+          className={`h-8 animate-pulse rounded-full bg-line motion-reduce:animate-none ${i ? 'hidden pills:block' : ''}`}
           style={{ width: `${rem}rem` }}
         />
       ))}

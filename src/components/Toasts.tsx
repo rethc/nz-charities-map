@@ -24,22 +24,22 @@ export function useToasts() {
 
 export function Toasts({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: number) => void }) {
   return (
-    <div className="on-ink pointer-events-none fixed right-4 bottom-4 z-50 flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2">
+    <div className="pointer-events-none fixed right-4 bottom-4 z-50 flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2">
       {toasts.map((t) => (
         <div
           key={t.id}
           role={t.tone === 'error' ? 'alert' : 'status'}
-          className={`animate-toast-in pointer-events-auto flex items-start gap-3 rounded-xl px-4 py-3 text-[0.9375rem] shadow-float ${
-            t.tone === 'error' ? 'bg-alert text-white' : 'bg-ink text-paper'
+          className={`animate-toast-in pointer-events-auto flex items-start gap-3 rounded border-l-4 bg-white px-4 py-3 text-sm text-ink shadow-float ${
+            t.tone === 'error' ? 'border-alert' : t.tone === 'success' ? 'border-fern' : 'border-brand'
           }`}
         >
-          {t.tone === 'success' && <CheckIcon className="mt-0.5 flex-none text-kowhai" />}
+          {t.tone === 'success' && <CheckIcon className="flex-none text-fern" />}
           <p className="min-w-0 flex-1 break-words">{t.message}</p>
           <button
             type="button"
             onClick={() => onDismiss(t.id)}
             aria-label="Dismiss"
-            className="-mr-1 grid size-7 flex-none place-items-center rounded-md opacity-80 hover:opacity-100"
+            className="-mr-1 grid size-7 flex-none place-items-center rounded text-muted hover:bg-paper hover:text-ink"
           >
             <CloseIcon size={16} />
           </button>

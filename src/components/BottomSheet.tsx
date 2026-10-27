@@ -96,7 +96,7 @@ export function BottomSheet({
       aria-labelledby={labelledBy}
       style={{ maxHeight: `max(11rem, min(58dvh, calc(100dvh - ${clearTop}px)))` }}
       // Full width on a phone; on anything wider it sits centred rather than stretching edge to edge.
-      className="animate-sheet-in fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-xl flex-col rounded-t-3xl bg-white shadow-float ring-1 ring-ink/5"
+      className="animate-sheet-in fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-xl flex-col rounded-t-2xl bg-white shadow-float"
     >
       <div
         onPointerDown={onPointerDown}
@@ -106,7 +106,7 @@ export function BottomSheet({
         className="flex h-6 flex-none cursor-grab touch-none items-center justify-center active:cursor-grabbing"
         aria-hidden="true"
       >
-        <span className="h-1 w-9 rounded-full bg-ink/15" />
+        <span className="h-1 w-8 rounded-full bg-mist" />
       </div>
       <div className="-mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom)]">
         {children}
@@ -129,7 +129,7 @@ export function SidePanel({ labelledBy, onSizeChange, children }: PanelProps) {
       role="dialog"
       aria-modal="false"
       aria-labelledby={labelledBy}
-      className="animate-side-in fixed inset-y-0 left-0 z-30 w-[min(24rem,52vw)] overflow-y-auto overscroll-contain bg-white pl-[env(safe-area-inset-left)] shadow-float ring-1 ring-ink/5"
+      className="animate-side-in fixed inset-y-0 left-0 z-30 w-[min(24rem,52vw)] overflow-y-auto overscroll-contain bg-white pl-[env(safe-area-inset-left)] shadow-float"
     >
       {children}
     </section>
