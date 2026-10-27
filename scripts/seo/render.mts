@@ -3,6 +3,8 @@
  * for structured data), because names and purposes are free text typed in by charities.
  * Styles live in browse.css; the pages run no JavaScript of their own.
  */
+import { SOCIAL_ICON_VIEWBOX, SOCIAL_ICONS } from '../../src/lib/socialIcons.ts'
+import type { SocialKey } from '../../src/lib/socials.ts'
 import type { Charity } from './fetch.mts'
 import {
   byName,
@@ -100,6 +102,12 @@ const icon = (body: string, size = 18) =>
 const PIN = icon('<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>')
 const EXTERNAL = icon('<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>', 16)
 const DIRECTIONS = icon('<path d="m3 11 18-8-8 18-2-8-8-2z"/>', 16)
+const GLOBE = icon('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9s1.2-6.4 3.7-9z"/>', 16)
+/** A platform's one-colour logo (src/lib/socialIcons.ts), in the link's own colour. */
+const socialIcon = (key: SocialKey) =>
+  `<svg width="16" height="16" viewBox="${SOCIAL_ICON_VIEWBOX}" fill="currentColor" aria-hidden="true" focusable="false">${SOCIAL_ICONS[key]
+    .map((d) => `<path d="${d}"/>`)
+    .join('')}</svg>`
 const BRAND =
   '<svg width="26" height="26" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><circle cx="32" cy="32" r="30" fill="#12333a"/><circle cx="32" cy="32" r="17" fill="none" stroke="#f2b705" stroke-width="5"/><circle cx="32" cy="32" r="7" fill="#fff"/></svg>'
 
@@ -283,8 +291,8 @@ export function charityPage(site: Site, ctx: PageContext, c: Charity): string {
     details.push(`<dt>Website</dt><dd><a href="${esc(c.website)}" rel="noopener">${esc(host)}</a></dd>`)
   }
   if (c.socials.length) {
-    const links = c.socials.map((s) => `<a href="${esc(s.href)}" rel="noopener">${esc(s.name)}</a>`)
-    details.push(`<dt>Social</dt><dd class="socials">${links.join('<span class="sep" aria-hidden="true">·</span>')}</dd>`)
+    const links = c.socials.map((s) => `<a href="${esc(s.href)}" rel="noopener">${socialIcon(s.key)}${esc(s.name)}</a>`)
+    details.push(`<dt>Social</dt><dd class="socials">${links.join('')}</dd>`)
   }
 
   const sections: string[] = []
@@ -362,8 +370,8 @@ ${c.isGroup ? '<p class="kicker">Registered group</p>' : ''}
 ${c.purpose ? `<p class="purpose"><span class="sr">Purpose: </span>${esc(c.purpose)}</p>` : ''}
 <div class="actions">
 <a class="btn btn-primary" href="${esc(mapHref({ cc: c.cc }))}">${PIN}See it on the map</a>
+${c.website ? `<a class="btn" href="${esc(c.website)}" rel="noopener">${GLOBE}Website</a>\n` : ''}<a class="btn" href="${esc(directionsUrl(c))}" rel="noopener">${DIRECTIONS}Directions</a>
 <a class="btn" href="${esc(registerUrl(c.cc))}" rel="noopener">Charities Register summary${EXTERNAL}</a>
-<a class="btn" href="${esc(directionsUrl(c))}" rel="noopener">${DIRECTIONS}Directions</a>
 </div>
 <dl class="details">${details.join('')}</dl>
 </section>

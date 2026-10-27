@@ -1,4 +1,6 @@
 import type { SVGProps } from 'react'
+import { SOCIAL_ICON_VIEWBOX, SOCIAL_ICONS } from '../lib/socialIcons'
+import type { SocialKey } from '../lib/socials'
 
 type IconProps = SVGProps<SVGSVGElement> & { size?: number }
 
@@ -119,3 +121,22 @@ export const ChevronDownIcon = (p: IconProps) => (
     <path d="m6 9 6 6 6-6" />
   </Svg>
 )
+
+/** A platform's one-colour logo, in the text's own colour (shared with the static pages). */
+export function SocialIcon({ platform, size = 16, className }: { platform: SocialKey; size?: number; className?: string }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={SOCIAL_ICON_VIEWBOX}
+      fill="currentColor"
+      aria-hidden="true"
+      focusable="false"
+      className={className}
+    >
+      {SOCIAL_ICONS[platform].map((d) => (
+        <path key={d} d={d} />
+      ))}
+    </svg>
+  )
+}

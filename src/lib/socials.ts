@@ -4,23 +4,36 @@
  * Shared by the map's popup and the static pages.
  */
 
+export type SocialKey =
+  | 'facebook'
+  | 'instagram'
+  | 'x'
+  | 'linkedin'
+  | 'youtube'
+  | 'tiktok'
+  | 'bluesky'
+  | 'linktree'
+  | 'givealittle'
+
 export interface SocialLink {
+  /** Which platform, for its logo (src/lib/socialIcons.ts). */
+  key: SocialKey
   /** The platform, as people know it: "Facebook", "X (Twitter)". */
   name: string
   href: string
 }
 
 /** In the order they're shown. */
-const PLATFORMS: Array<{ name: string; host: RegExp }> = [
-  { name: 'Facebook', host: /(^|\.)(facebook\.com|facebook\.co\.nz|fb\.com|fb\.me)$/ },
-  { name: 'Instagram', host: /(^|\.)(instagram\.com|instagr\.am)$/ },
-  { name: 'X (Twitter)', host: /(^|\.)(x\.com|twitter\.com)$/ },
-  { name: 'LinkedIn', host: /(^|\.)linkedin\.com$/ },
-  { name: 'YouTube', host: /(^|\.)(youtube\.com|youtu\.be)$/ },
-  { name: 'TikTok', host: /(^|\.)tiktok\.com$/ },
-  { name: 'Bluesky', host: /(^|\.)bsky\.app$/ },
-  { name: 'Linktree', host: /(^|\.)linktr\.ee$/ },
-  { name: 'Givealittle', host: /(^|\.)givealittle\.co\.nz$/ },
+const PLATFORMS: Array<{ key: SocialKey; name: string; host: RegExp }> = [
+  { key: 'facebook', name: 'Facebook', host: /(^|\.)(facebook\.com|facebook\.co\.nz|fb\.com|fb\.me)$/ },
+  { key: 'instagram', name: 'Instagram', host: /(^|\.)(instagram\.com|instagr\.am)$/ },
+  { key: 'x', name: 'X (Twitter)', host: /(^|\.)(x\.com|twitter\.com)$/ },
+  { key: 'linkedin', name: 'LinkedIn', host: /(^|\.)linkedin\.com$/ },
+  { key: 'youtube', name: 'YouTube', host: /(^|\.)(youtube\.com|youtu\.be)$/ },
+  { key: 'tiktok', name: 'TikTok', host: /(^|\.)tiktok\.com$/ },
+  { key: 'bluesky', name: 'Bluesky', host: /(^|\.)bsky\.app$/ },
+  { key: 'linktree', name: 'Linktree', host: /(^|\.)linktr\.ee$/ },
+  { key: 'givealittle', name: 'Givealittle', host: /(^|\.)givealittle\.co\.nz$/ },
 ]
 
 /** The platform's place in PLATFORMS and its link, for an http(s) address on one with a page given; else null. */
@@ -57,5 +70,5 @@ export function socialLinks(socials: unknown, website?: string | null): SocialLi
   }
   return [...byRank]
     .sort(([a], [b]) => a - b)
-    .map(([rank, href]) => ({ name: PLATFORMS[rank]!.name, href }))
+    .map(([rank, href]) => ({ key: PLATFORMS[rank]!.key, name: PLATFORMS[rank]!.name, href }))
 }

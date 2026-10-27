@@ -111,8 +111,8 @@ test('register rows: contact details, and social pages named by their address', 
   assert.equal(c.phone, '04 245 0900')
   assert.equal(c.email, 'enquiries@wcm.org.nz')
   assert.deepEqual(c.socials, [
-    { name: 'Facebook', href: 'https://www.facebook.com/wcm' },
-    { name: 'X (Twitter)', href: 'https://x.com/wcm' },
+    { key: 'facebook', name: 'Facebook', href: 'https://www.facebook.com/wcm' },
+    { key: 'x', name: 'X (Twitter)', href: 'https://x.com/wcm' },
   ])
   assert.equal(toCharity(row({ email: 'not an email' }))!.email, null)
   assert.equal(toCharity(row({ email: 'a@b.org" onclick="x' }))!.email, null)
@@ -120,10 +120,10 @@ test('register rows: contact details, and social pages named by their address', 
   // A website that is a Facebook page is shown as the Facebook link, before the sync has run too.
   const fb = toCharity(row({ website: 'http://m.facebook.com/ourtrust' }))!
   assert.equal(fb.website, null)
-  assert.deepEqual(fb.socials, [{ name: 'Facebook', href: 'https://m.facebook.com/ourtrust' }])
+  assert.deepEqual(fb.socials, [{ key: 'facebook', name: 'Facebook', href: 'https://m.facebook.com/ourtrust' }])
   // …unless the socials already have one.
   const both = toCharity(row({ website: 'https://facebook.com/old', socials: ['https://www.facebook.com/new'] }))!
-  assert.deepEqual(both.socials, [{ name: 'Facebook', href: 'https://www.facebook.com/new' }])
+  assert.deepEqual(both.socials, [{ key: 'facebook', name: 'Facebook', href: 'https://www.facebook.com/new' }])
   // A database without the newer columns gives none of these.
   const old = toCharity(row())!
   assert.deepEqual([old.phone, old.email, old.socials], [null, null, []])
@@ -225,7 +225,7 @@ test('text from the register cannot break out of the page', () => {
     purpose: '</script><img src=x onerror=alert(1)>',
     website: 'https://example.org/?a=1&b="2"',
     phone: '<b>04</b> 245 0900',
-    socials: [{ name: 'Facebook', href: 'https://www.facebook.com/a"><b>' }],
+    socials: [{ key: 'facebook', name: 'Facebook', href: 'https://www.facebook.com/a"><b>' }],
   })
   const html = charityPage(siteOf([nasty]), ctx, nasty)
   assert.doesNotMatch(html, /<script>alert/)
@@ -244,15 +244,19 @@ test('a charity page lists its phone, email, website and social pages', () => {
     email: 'enquiries@wcm.org.nz',
     website: 'https://wcm.org.nz/',
     socials: [
-      { name: 'Facebook', href: 'https://www.facebook.com/wcm' },
-      { name: 'Instagram', href: 'https://www.instagram.com/wcm' },
+      { key: 'facebook', name: 'Facebook', href: 'https://www.facebook.com/wcm' },
+      { key: 'instagram', name: 'Instagram', href: 'https://www.instagram.com/wcm' },
     ],
   })
   const html = charityPage(siteOf([c]), ctx, c)
   assert.match(html, /<dt>Phone<\/dt><dd><a href="tel:042450900">04 245 0900<\/a><\/dd>/)
   assert.match(html, /<dt>Email<\/dt><dd><a href="mailto:enquiries@wcm\.org\.nz">enquiries@wcm\.org\.nz<\/a><\/dd>/)
   assert.match(html, /<dt>Website<\/dt><dd><a href="https:\/\/wcm\.org\.nz\/" rel="noopener">wcm\.org\.nz<\/a>/)
-  assert.match(html, /<dt>Social<\/dt><dd class="socials"><a href="https:\/\/www\.facebook\.com\/wcm" rel="noopener">Facebook<\/a>.*Instagram<\/a><\/dd>/)
+  assert.match(html, /<dt>Social<\/dt><dd class="socials"><a href="https:\/\/www\.facebook\.com\/wcm" rel="noopener"><svg [^>]*aria-hidden="true"[^>]*><path d="M16 8\.049[^"]*"\/><\/svg>Facebook<\/a>.*<svg [^>]*>.*<\/svg>Instagram<\/a><\/dd>/)
+  // The website is a button as well, beside Directions.
+  const buttons = [...html.matchAll(/<a class="btn[^"]*"[^>]*>(.*?)<\/a>/g)].map((m) => m[1]!.replace(/<[^>]+>/g, ''))
+  assert.deepEqual(buttons, ['See it on the map', 'Website', 'Directions', 'Charities Register summary'])
+  assert.match(html, /<a class="btn" href="https:\/\/wcm\.org\.nz\/" rel="noopener"><svg/)
   const data = JSON.parse(html.match(/<script type="application\/ld\+json">(.*?)<\/script>/)![1]!) as {
     '@graph': Array<{ telephone?: string; email?: string; sameAs?: string[] }>
   }
@@ -266,6 +270,7 @@ test('a charity page lists its phone, email, website and social pages', () => {
   const plain = charityPage(siteOf([wordy]), ctx, wordy)
   assert.match(plain, /<dt>Phone<\/dt><dd>0800 SALLIES<\/dd>/)
   assert.doesNotMatch(plain, /<dt>(Email|Website|Social)<\/dt>/)
+  assert.doesNotMatch(plain, />Website<\/a>/)
 })
 
 test('every page has its own canonical address and a description', () => {

@@ -1,8 +1,8 @@
-import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { useCharityDetail } from '../hooks/useCharityDetail'
 import { directionsUrl, formatAddress, registerUrl, type CharityPoint } from '../lib/charities'
 import { isSocialPage, socialLinks } from '../lib/socials'
-import { BackIcon, CheckIcon, CloseIcon, DirectionsIcon, ExternalIcon, LinkIcon } from './Icons'
+import { BackIcon, CheckIcon, CloseIcon, DirectionsIcon, ExternalIcon, LinkIcon, SocialIcon } from './Icons'
 
 interface CommonProps {
   titleId: string
@@ -281,19 +281,20 @@ export function CharityDetails({
         {socials.length > 0 && (
           <>
             <dt className={fieldName}>Social</dt>
-            <dd className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-              {socials.map((social, i) => (
-                <Fragment key={social.name}>
-                  {i > 0 && (
-                    <span className="text-muted" aria-hidden="true">
-                      ·
-                    </span>
-                  )}
-                  <a href={social.href} target="_blank" rel="noopener noreferrer" className={textLink}>
-                    {social.name}
-                    <NewTab />
-                  </a>
-                </Fragment>
+            {/* The logos set the links apart, so no dots between them. */}
+            <dd className="flex flex-wrap gap-x-4 gap-y-1">
+              {socials.map((social) => (
+                <a
+                  key={social.key}
+                  href={social.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`${textLink} inline-flex items-center gap-1.5 whitespace-nowrap`}
+                >
+                  <SocialIcon platform={social.key} className="flex-none" />
+                  {social.name}
+                  <NewTab />
+                </a>
               ))}
             </dd>
           </>
