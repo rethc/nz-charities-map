@@ -330,6 +330,9 @@ function Triage({ email }: { email: string | null }) {
         </div>
         {load.status === 'ready' && <p className="text-sm text-mist">{formatCount(queueTotal)} to review</p>}
         <nav aria-label="Account" className="ml-auto flex items-center gap-4 text-sm">
+          <Link to="/admin/returns" className="font-semibold underline decoration-ink-line underline-offset-4 hover:decoration-kowhai">
+            Return checks
+          </Link>
           <Link to="/" className="font-semibold underline decoration-ink-line underline-offset-4 hover:decoration-kowhai">
             Public map
           </Link>

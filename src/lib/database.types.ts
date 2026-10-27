@@ -146,6 +146,16 @@ export type Database = {
         Args: { p_results: Json }
         Returns: number
       }
+      /** Admins only. Returns ReturnChecks. Added by the return_checks migration. */
+      get_return_checks: {
+        Args: never
+        Returns: Json
+      }
+      /** Service role only (scripts/return_checks.py). */
+      replace_return_checks: {
+        Args: { p_findings: Json }
+        Returns: number
+      }
     }
     Enums: { [_ in never]: never }
     CompositeTypes: { [_ in never]: never }
@@ -168,6 +178,25 @@ export type CharityDetail = Pick<
   'cc_number' | 'name' | 'sector' | 'street' | 'suburb' | 'city' | 'postcode'
 > &
   Partial<Pick<CharityRow, 'purpose' | 'activity' | 'beneficiary' | 'phone' | 'email' | 'website' | 'socials'>>
+
+/** One finding of the annual return checks (scripts/return_checks.py), as get_return_checks() returns it. */
+export type ReturnCheckFinding = {
+  check: 'overdue' | 'year_end_mismatch' | 'tier_over_limit'
+  cc: string
+  name: string
+  return_id: number | null
+  year_ended: string | null
+  /** One plain sentence. */
+  summary: string
+  /** Per check: days_overdue and due for `overdue`; tier, limit and spent for `tier_over_limit`. */
+  details: Record<string, unknown>
+}
+
+export type ReturnChecks = {
+  /** When the checks last ran; null before the first run. */
+  checked_at: string | null
+  findings: ReturnCheckFinding[]
+}
 
 /** One row of `get_charities_in_view(..., format => 'compact')`. `group_cc` arrived with v2. */
 export type CharityTuple = [

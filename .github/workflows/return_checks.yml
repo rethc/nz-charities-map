@@ -1,0 +1,49 @@
+name: Annual return checks
+
+# Flags annual returns worth a closer look (overdue, year end differs, over a tier's limit)
+# from the Charities Register's public data, for the site's admin area (/admin/returns).
+# The log shows counts only: this repository's Action logs are public, the results are not.
+
+on:
+  schedule:
+    # Weekly, Sunday 18:00 UTC = Monday 06:00 NZST / 07:00 NZDT.
+    - cron: "0 18 * * 0"
+  workflow_dispatch:
+
+concurrency:
+  group: return-checks
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      GEOCODER_CONTACT: ${{ vars.GEOCODER_CONTACT || format('https://github.com/{0}', github.repository) }}
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check required secrets
+        run: |
+          missing=0
+          for name in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
+            if [ -z "${!name}" ]; then echo "::error::Repository secret $name is not set"; missing=1; fi
+          done
+          exit $missing
+
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: scripts/return_checks.py
+
+      - name: Unit tests
+        run: uvx --python 3.13 --with httpx pytest scripts/tests -q
+
+      - name: Check the returns
+        run: uv run --python 3.13 scripts/return_checks.py

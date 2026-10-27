@@ -25,6 +25,7 @@ export const router = createBrowserRouter([
           // Admin screens are split out so public visitors never download them.
           { path: 'login', lazy: async () => ({ Component: (await import('./pages/admin/LoginPage')).default }) },
           { path: 'triage', lazy: async () => ({ Component: (await import('./pages/admin/TriagePage')).default }) },
+          { path: 'returns', lazy: async () => ({ Component: (await import('./pages/admin/ReturnsPage')).default }) },
         ],
       },
       { path: '*', Component: NotFound },

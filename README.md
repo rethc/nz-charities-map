@@ -39,6 +39,23 @@ Saturday full sync then triggers a deploy. Builds without Supabase settings skip
 `SEO_PAGES=off` turns it off. If the data can't be loaded, the build fails, so Netlify keeps
 the current site live. Tests: `npm run test:pages`.
 
+## Annual return checks (admins only)
+
+`scripts/return_checks.py` reads the Charities Register's public data feed each week (the
+"Annual return checks" workflow) and lists, at `/admin/returns`, charities whose annual returns
+are worth a closer look:
+
+* **Overdue**: the next return was due 6 months after the balance date and none has been filed.
+  The public feed has no extensions, so a charity with one can appear; the page shows returns
+  more than 60 days late by default.
+* **Year end differs**: the latest return's year end isn't the registered balance date.
+* **Over tier limit**: the same tier for three returns running while over its limit (rules on
+  [charities.govt.nz](https://www.charities.govt.nz/annual-reporting/which-tier-will-i-use)).
+
+The results never reach the public site: an automated check can be wrong. Setup: run
+`supabase/migrations/20261027010000_return_checks.sql`, then the workflow once. Try it without
+the database: `uv run scripts/return_checks.py --dry-run findings.json`.
+
 ## Data licences
 
 * **Charity data:** © Charities Services, licensed under CC BY 3.0 NZ.

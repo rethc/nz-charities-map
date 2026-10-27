@@ -849,10 +849,10 @@ def odata_datetime_literal(ts: datetime) -> str:
 
 def fetch_keyset(
     client: httpx.Client, entity: str, key: str, fields: tuple[str, ...], *,
-    since: datetime | None, registered_only: bool, limit: int | None = None,
+    since: datetime | None, registered_only: bool, limit: int | None = None, where: str | None = None,
 ) -> Iterator[dict[str, Any]]:
     """Keyset pagination on the entity's integer key: robust to the service's 1000-row cap
-    and to records changing between pages (no $skip drift)."""
+    and to records changing between pages (no $skip drift). `where` adds an OData filter."""
     last_id, yielded = 0, 0
     while True:
         clauses = [f"{key} gt {last_id}"]
@@ -860,6 +860,8 @@ def fetch_keyset(
             clauses.append("RegistrationStatus eq 'Registered'")
         if since:
             clauses.append(f"ModifiedOn gt {odata_datetime_literal(since)}")
+        if where:
+            clauses.append(where)
         params = {
             "$filter": " and ".join(clauses),
             "$orderby": key,
