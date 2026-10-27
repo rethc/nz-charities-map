@@ -133,7 +133,7 @@ const CHECKS: CheckInfo[] = [
   {
     name: 'overdue', code: 'B1', group: 'register', title: 'Filed on time', reads: 'Filing history, due dates',
     figure: 'Days late', sort: { sortColumn: 'days', sortDirection: 'descending' },
-    description: `Returns more than ${LATE_DAYS} days late. Extensions aren't in the public data, and some charities file through a group the data doesn't record: the register page is the final word.`,
+    description: `Returns more than ${LATE_DAYS} days late. Extensions aren't in the public data, and some charities file through a group the data doesn't record.`,
   },
   {
     name: 'missing_year', code: 'B2', group: 'register', title: 'No missing years', reads: 'Filing history',
@@ -459,9 +459,7 @@ function Returns({ email }: { email: string | null }) {
           <MessageBar intent="warning" layout="multiline">
             <MessageBarBody>
               <MessageBarTitle>Public data, after publication: review only.</MessageBarTitle>
-              The checks only see a return once the register publishes it, so returns still being processed, withheld
-              returns, extensions and group filings the data doesn't record are invisible, and some findings are wrong.
-              Confirm on the charity's register page before acting.
+              These are automated checks of the Charities Register's public data, and some are wrong.
             </MessageBarBody>
           </MessageBar>
 
