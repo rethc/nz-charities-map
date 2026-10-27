@@ -367,7 +367,7 @@ export function MapPage() {
               Square-cornered with an icon, so it reads as a way to another page, not one of the round filter pills. */}
           <a
             href="/browse/"
-            className="ml-auto flex-none inline-flex items-center justify-center gap-1.5 rounded px-3 text-sm font-semibold transition-colors h-8 border border-stroke bg-white text-ink hover:border-mist hover:bg-paper active:bg-line"
+            className="ml-auto flex-none inline-flex items-center justify-center gap-1.5 rounded px-3 text-base font-semibold transition-colors h-9 border border-stroke bg-white text-ink hover:border-mist hover:bg-paper active:bg-line"
           >
             <ListIcon size={16} />
             {/* One piece of text, so the flex gap doesn't open up between the words. */}
@@ -404,7 +404,7 @@ export function MapPage() {
         )}
         <div className="mt-3 text-sm text-muted">{status}</div>
         {notice && (
-          <div role="status" className="mt-3 flex items-start gap-2 rounded border border-line bg-paper px-3 py-2 text-sm">
+          <div role="status" className="mt-3 flex items-start gap-2 rounded border border-line bg-paper px-3 py-2 text-base">
             <p className="min-w-0 flex-1">{notice}</p>
             <button
               type="button"

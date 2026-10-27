@@ -532,7 +532,7 @@ ${
 /** A card linking to a region or district, with what's inside it underneath. */
 const card = (href: string, title: string, count: number, inside: string[]) =>
   `<li><a class="tile" href="${esc(href)}"><span class="tile-title">${esc(title)}</span><span class="n">${n(count)} ${count === 1 ? 'charity' : 'charities'}</span>${
-    inside.length ? `<span class="tile-sub">${esc(inside.join(' · '))}</span>` : ''
+    inside.length ? `<span class="tile-sub">${inside.map((x, i) => `<span>${esc(x)}${i < inside.length - 1 ? '&nbsp;·' : ''}</span>`).join(' ')}</span>` : ''
   }</a></li>`
 
 /** The biggest few names in an area, for a card: "Lower Hutt City, Wellington City, Porirua City and 5 more". */

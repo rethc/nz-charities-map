@@ -34,6 +34,7 @@ import {
   webLightTheme,
   type TableColumnDefinition,
   type TableColumnId,
+  type Theme,
 } from '@fluentui/react-components'
 import {
   ArrowSync20Regular,
@@ -101,6 +102,20 @@ const showDate = (s: string | null) => {
 }
 const num = (v: unknown) => (typeof v === 'number' ? v : Number(v ?? 0))
 
+/** Fluent's light theme with the site's 16px body text: easier to read than Fluent's 14px. */
+const theme: Theme = {
+  ...webLightTheme,
+  fontSizeBase200: '14px',
+  lineHeightBase200: '20px',
+  fontSizeBase300: '16px',
+  lineHeightBase300: '22px',
+  fontSizeBase400: '18px',
+  lineHeightBase400: '24px',
+}
+/** Chart text: labels, and the numbers along an axis. */
+const LABEL = 14
+const TICK = 13
+
 const useStyles = makeStyles({
   root: { height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: tokens.colorNeutralBackground3 },
   appBar: {
@@ -117,7 +132,7 @@ const useStyles = makeStyles({
   appNav: { marginLeft: 'auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 8px' },
   email: { color: tokens.colorNeutralForeground3, '@media (max-width: 640px)': { display: 'none' } },
   scroll: { flex: '1 1 auto', minHeight: 0, overflowY: 'auto' },
-  page: { maxWidth: '1320px', margin: '0 auto', padding: '16px clamp(16px, 3vw, 32px) 40px', display: 'grid', gap: '16px' },
+  page: { maxWidth: '1320px', margin: '0 auto', padding: '16px clamp(16px, 3vw, 32px) 40px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '16px' },
   head: { display: 'grid', gap: '6px' },
   titleRow: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px 12px' },
   lead: { color: tokens.colorNeutralForeground2, maxWidth: '92ch' },
@@ -144,8 +159,8 @@ const useStyles = makeStyles({
     fontVariantNumeric: 'tabular-nums',
   },
   muted: { color: tokens.colorNeutralForeground3 },
-  tabs: { borderBottom: `1px solid ${tokens.colorNeutralStroke2}` },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 30rem), 1fr))', gap: '16px' },
+  tabs: { flexWrap: 'wrap', borderBottom: `1px solid ${tokens.colorNeutralStroke2}` },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 30rem), 1fr))', alignItems: 'start', gap: '16px' },
   card: { display: 'grid', gap: '12px', alignContent: 'start', minWidth: 0 },
   cardHead: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' },
   cardTitle: { display: 'grid', gap: '2px', minWidth: 0 },
@@ -250,7 +265,7 @@ function Returns({ email }: { email: string | null }) {
   const checkedAt = load.status === 'ready' && load.data.checked_at ? new Date(load.data.checked_at) : null
 
   return (
-    <FluentProvider theme={webLightTheme} className={s.root}>
+    <FluentProvider theme={theme} className={s.root}>
       <header className={s.appBar}>
         <div className={s.brand}>
           <BrandMark size={24} />
@@ -300,7 +315,7 @@ function Returns({ email }: { email: string | null }) {
             )}
           </div>
 
-          <MessageBar intent="warning">
+          <MessageBar intent="warning" layout="multiline">
             <MessageBarBody>
               <MessageBarTitle>Review only.</MessageBarTitle>
               These are automated checks of the Charities Register's public data, and some are wrong, for example where
@@ -314,7 +329,7 @@ function Returns({ email }: { email: string | null }) {
             </div>
           )}
           {load.status === 'error' && (
-            <MessageBar intent="error">
+            <MessageBar intent="error" layout="multiline">
               <MessageBarBody>
                 <MessageBarTitle>Couldn't load the checks.</MessageBarTitle>
                 {load.message}
@@ -587,10 +602,10 @@ function HBars<T extends { key: string; label: string; value: number; muted?: bo
   const [ref, box] = useElementBox<HTMLDivElement>()
   const { tip: shown, setTip } = useTip()
   const width = Math.max(260, box.width)
-  const rowH = 32, top = 4, axisH = 22
+  const rowH = 34, top = 4, axisH = 22
   const height = top + rows.length * rowH + axisH
-  const labelW = Math.min(width * 0.4, Math.max(0, ...rows.map((r) => textWidth(r.label, 13))))
-  const valueW = Math.max(0, ...rows.map((r) => textWidth(format(r.value), 12, 600)))
+  const labelW = Math.min(width * 0.4, Math.max(0, ...rows.map((r) => textWidth(r.label, LABEL))))
+  const valueW = Math.max(0, ...rows.map((r) => textWidth(format(r.value), TICK, 600)))
   const left = labelW + 12, right = valueW + 12
   const { ticks, top: maxValue } = niceTicks(Math.max(...rows.map((r) => r.value), 0) || 1, Math.max(2, Math.min(6, Math.floor((width - left - right) / 70))))
   const x = (v: number) => left + (v / maxValue) * Math.max(40, width - left - right)
@@ -602,7 +617,7 @@ function HBars<T extends { key: string; label: string; value: number; muted?: bo
           {ticks.map((t) => (
             <g key={t}>
               <line x1={x(t)} x2={x(t)} y1={top} y2={top + rows.length * rowH} style={{ stroke: tokens.colorNeutralStroke2 }} />
-              <text x={x(t)} y={height - 6} textAnchor="middle" fontSize={12} style={{ fill: tokens.colorNeutralForeground3 }}>
+              <text x={x(t)} y={height - 6} textAnchor="middle" fontSize={TICK} style={{ fill: tokens.colorNeutralForeground3 }}>
                 {tick(t)}
               </text>
             </g>
@@ -611,12 +626,12 @@ function HBars<T extends { key: string; label: string; value: number; muted?: bo
             const y = top + i * rowH + (rowH - bar) / 2
             return (
               <g key={r.key}>
-                <text x={left - 12} y={y + bar / 2} dy="0.35em" textAnchor="end" fontSize={13} style={{ fill: tokens.colorNeutralForeground2 }}>
-                  {clip(r.label, 13, labelW)}
+                <text x={left - 12} y={y + bar / 2} dy="0.35em" textAnchor="end" fontSize={LABEL} style={{ fill: tokens.colorNeutralForeground2 }}>
+                  {clip(r.label, LABEL, labelW)}
                 </text>
                 <rect x={left} y={y} width={Math.max(2, x(r.value) - left)} height={bar} rx={2}
                   style={{ fill: r.muted ? tokens.colorNeutralStroke1Pressed : tokens.colorBrandForeground1 }} />
-                <text x={Math.max(left, x(r.value)) + 6} y={y + bar / 2} dy="0.35em" fontSize={12} fontWeight={600}
+                <text x={Math.max(left, x(r.value)) + 6} y={y + bar / 2} dy="0.35em" fontSize={TICK} fontWeight={600}
                   style={{ fill: tokens.colorNeutralForeground1, fontVariantNumeric: 'tabular-nums' }}>
                   {format(r.value)}
                 </text>
@@ -654,7 +669,7 @@ function TierDots({ rows }: { rows: Row[] }) {
   const width = Math.max(280, box.width)
   const rowH = 28, top = 4, axisH = 22
   const height = top + items.length * rowH + axisH
-  const labelW = Math.min(width * 0.42, Math.max(0, ...items.map((r) => textWidth(r.name, 13))))
+  const labelW = Math.min(width * 0.42, Math.max(0, ...items.map((r) => textWidth(r.name, LABEL))))
   const tagW = 30
   const left = labelW + tagW + 16, right = 16
   const xMax = Math.max(2, Math.ceil(Math.max(...items.map((r) => r.max), 2) * 1.05 * 2) / 2)
@@ -669,7 +684,7 @@ function TierDots({ rows }: { rows: Row[] }) {
           {ticks.filter((t) => t <= xMax).map((t) => (
             <g key={t}>
               <line x1={x(t)} x2={x(t)} y1={top} y2={top + items.length * rowH} style={{ stroke: tokens.colorNeutralStroke2 }} />
-              <text x={x(t)} y={height - 6} textAnchor="middle" fontSize={12} style={{ fill: tokens.colorNeutralForeground3 }}>
+              <text x={x(t)} y={height - 6} textAnchor="middle" fontSize={TICK} style={{ fill: tokens.colorNeutralForeground3 }}>
                 {t === 0 ? '0' : `${t}×`}
               </text>
             </g>
@@ -681,8 +696,8 @@ function TierDots({ rows }: { rows: Row[] }) {
             const lo = Math.min(...r.pts.map((p) => p.ratio))
             return (
               <g key={r.id}>
-                <text x={left - tagW - 12} y={cy} dy="0.35em" textAnchor="end" fontSize={13} style={{ fill: tokens.colorNeutralForeground2 }}>
-                  {clip(r.name, 13, labelW)}
+                <text x={left - tagW - 12} y={cy} dy="0.35em" textAnchor="end" fontSize={LABEL} style={{ fill: tokens.colorNeutralForeground2 }}>
+                  {clip(r.name, LABEL, labelW)}
                 </text>
                 <rect x={left - tagW - 4} y={cy - 9} width={tagW - 4} height={18} rx={4}
                   style={{ fill: tokens.colorBrandBackground2, stroke: tokens.colorBrandStroke2 }} />

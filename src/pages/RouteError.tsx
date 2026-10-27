@@ -23,7 +23,7 @@ export function RouteError() {
         <button
           type="button"
           onClick={() => window.location.reload()}
-          className="inline-flex items-center justify-center gap-1.5 rounded px-3 text-sm font-semibold transition-colors h-8 bg-brand text-white hover:bg-brand-hover active:bg-brand-pressed"
+          className="inline-flex items-center justify-center gap-1.5 rounded px-3 text-base font-semibold transition-colors h-9 bg-brand text-white hover:bg-brand-hover active:bg-brand-pressed"
         >
           Reload
         </button>

@@ -162,7 +162,7 @@ export function SearchBox({
           ))}
         </div>
         {results !== null && options.length === 0 && (
-          <p className="px-4 py-3 text-[0.9375rem]">
+          <p className="px-4 py-3 text-base">
             No charities match “{value.trim()}”. Try fewer words, or a registration number like CC12345.
           </p>
         )}

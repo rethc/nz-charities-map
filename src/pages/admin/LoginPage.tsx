@@ -79,8 +79,8 @@ export default function LoginPage() {
           <p className="font-semibold">NZ Charities Map</p>
         </div>
         <h1 className="font-display text-2xl leading-tight font-semibold text-balance">Sign in to review locations</h1>
-        <p className="mt-2 text-[0.9375rem] text-muted">
-          For admins placing the charities the geocoder couldn't find with confidence.
+        <p className="mt-2 text-base text-muted">
+          For admins: put charities on the map when their address couldn't be matched automatically.
         </p>
 
         <div role="group" aria-label="Sign-in method" className="mt-6 grid grid-cols-2 gap-1 rounded bg-paper p-1">
@@ -103,14 +103,14 @@ export default function LoginPage() {
         {status.state === 'sent' ? (
           <div role="status" className="mt-6 rounded-2xl bg-white p-4 shadow-card">
             <p className="font-semibold">Check your inbox</p>
-            <p className="mt-1 text-[0.9375rem]">
+            <p className="mt-1 text-base">
               We sent a sign-in link to {status.email}. Open it in this browser on this device, because the link only
               works where it was requested.
             </p>
             <button
               type="button"
               onClick={() => setStatus({ state: 'idle' })}
-              className="mt-3 text-sm font-semibold underline underline-offset-4"
+              className="mt-3 text-base font-semibold underline underline-offset-4"
             >
               Use a different email
             </button>
@@ -118,7 +118,7 @@ export default function LoginPage() {
         ) : (
           <form onSubmit={mode === 'link' ? sendLink : signInWithPassword} className="mt-6 space-y-4">
             <div>
-              <label htmlFor="email" className="block text-sm font-semibold">
+              <label htmlFor="email" className="block text-base font-semibold">
                 Email address
               </label>
               <input
@@ -133,7 +133,7 @@ export default function LoginPage() {
             </div>
             {mode === 'password' && (
               <div>
-                <label htmlFor="password" className="block text-sm font-semibold">
+                <label htmlFor="password" className="block text-base font-semibold">
                   Password
                 </label>
                 <input
@@ -148,14 +148,14 @@ export default function LoginPage() {
               </div>
             )}
             {status.state === 'error' && (
-              <p role="alert" className="rounded border border-[#eeacb2] bg-alert-tint px-3 py-2 text-sm text-alert">
+              <p role="alert" className="rounded border border-[#eeacb2] bg-alert-tint px-3 py-2 text-base text-alert">
                 {status.message}
               </p>
             )}
             <button
               type="submit"
               disabled={busy}
-              className="flex h-10 w-full items-center justify-center gap-2 rounded bg-brand text-sm font-semibold text-white hover:bg-brand-hover active:bg-brand-pressed disabled:opacity-70"
+              className="flex h-10 w-full items-center justify-center gap-2 rounded bg-brand text-base font-semibold text-white hover:bg-brand-hover active:bg-brand-pressed disabled:opacity-70"
             >
               {busy && <Spinner size={16} />}
               {mode === 'link' ? 'Email me a sign-in link' : 'Sign in'}
@@ -163,7 +163,7 @@ export default function LoginPage() {
           </form>
         )}
 
-        <p className="mt-8 text-sm">
+        <p className="mt-8 text-base">
           <Link to="/" className="font-semibold underline underline-offset-4">
             Back to the map
           </Link>

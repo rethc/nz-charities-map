@@ -329,7 +329,7 @@ function Triage({ email }: { email: string | null }) {
           <h1 className="font-display text-base leading-tight font-semibold">Location review</h1>
         </div>
         {load.status === 'ready' && <p className="text-sm text-muted">{formatCount(queueTotal)} to review</p>}
-        <nav aria-label="Account" className="ml-auto flex items-center gap-4 text-sm">
+        <nav aria-label="Account" className="ml-auto flex items-center gap-4 text-base">
           <Link to="/admin/returns" className="rounded px-2 py-1 font-semibold text-ink-soft hover:bg-paper hover:text-ink">
             Return checks
           </Link>
@@ -382,15 +382,15 @@ function Triage({ email }: { email: string | null }) {
                   >
                     <span className="block leading-snug font-semibold break-words">{q.name}</span>
                     <span className="block text-sm text-muted">{q.cc_number}</span>
-                    <span className="mt-1 block text-sm break-words">{q.address_raw || 'No street address'}</span>
-                    {q.geocode_error && <span className="mt-1 block text-sm text-alert">{q.geocode_error}</span>}
+                    <span className="mt-1 block text-base break-words">{q.address_raw || 'No street address'}</span>
+                    {q.geocode_error && <span className="mt-1 block text-base text-alert">{q.geocode_error}</span>}
                   </button>
                 </li>
               )
             })}
           </ul>
           {load.status === 'ready' && queue.length > 0 && visibleQueue.length === 0 && (
-            <p className="p-4 text-[0.9375rem]">No charities match “{filter.trim()}”.</p>
+            <p className="p-4 text-base">No charities match “{filter.trim()}”.</p>
           )}
         </aside>
 
@@ -424,7 +424,7 @@ function Triage({ email }: { email: string | null }) {
                       href={registerUrl(item.cc_number)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex flex-none items-center gap-1 rounded text-sm font-semibold underline underline-offset-4"
+                      className="inline-flex flex-none items-center gap-1 rounded text-base font-semibold underline underline-offset-4"
                     >
                       Charity summary
                       <ExternalIcon size={14} />
@@ -432,7 +432,7 @@ function Triage({ email }: { email: string | null }) {
                     </a>
                   </div>
 
-                  <dl className="mt-3 space-y-2 text-[0.9375rem]">
+                  <dl className="mt-3 space-y-2 text-base">
                     <div>
                       <dt className="text-sm text-muted">Address on the register</dt>
                       <dd className="break-words">{item.address_raw || 'None given'}</dd>
@@ -446,7 +446,7 @@ function Triage({ email }: { email: string | null }) {
                   </dl>
 
                   <form onSubmit={testGeocode} className="mt-4">
-                    <label htmlFor="geocode-address" className="block text-sm font-semibold">
+                    <label htmlFor="geocode-address" className="block text-base font-semibold">
                       Address to look up
                     </label>
                     <div className="mt-1 flex gap-2">
@@ -465,7 +465,7 @@ function Triage({ email }: { email: string | null }) {
                       <button
                         type="submit"
                         disabled={geo.status === 'loading'}
-                        className="inline-flex h-9 flex-none items-center gap-1.5 rounded border border-stroke bg-white px-3 text-sm font-semibold hover:border-mist hover:bg-paper disabled:opacity-60"
+                        className="inline-flex h-10 flex-none items-center gap-1.5 rounded border border-stroke bg-white px-3 text-base font-semibold hover:border-mist hover:bg-paper disabled:opacity-60"
                       >
                         {geo.status === 'loading' && <Spinner size={14} />}
                         Test geocode
@@ -491,7 +491,7 @@ function Triage({ email }: { email: string | null }) {
                                 {i + 1}
                               </span>
                               <span className="min-w-0">
-                                <span className="block text-[0.9375rem] leading-snug break-words">{c.label}</span>
+                                <span className="block text-base leading-snug break-words">{c.label}</span>
                                 <span className="block text-sm text-muted">{describeCandidate(c)}</span>
                               </span>
                             </button>
@@ -501,13 +501,13 @@ function Triage({ email }: { email: string | null }) {
                     </ol>
                   )}
                   {geo.status === 'done' && geo.candidates.length === 0 && geo.query && (
-                    <p className="mt-3 text-[0.9375rem]">
+                    <p className="mt-3 text-base">
                       No matches for that address. Try dropping the unit or building name, or place the pin by hand.
                     </p>
                   )}
                   {geo.status === 'done' && geo.notice && <p className="mt-2 text-sm text-muted">{geo.notice}</p>}
                   {geo.status === 'error' && (
-                    <p role="alert" className="mt-3 text-[0.9375rem] text-alert">
+                    <p role="alert" className="mt-3 text-base text-alert">
                       {geo.message}
                     </p>
                   )}
@@ -516,7 +516,7 @@ function Triage({ email }: { email: string | null }) {
                 <div className="flex-none border-t border-line p-4">
                   {mode === 'unlocatable' ? (
                     <form onSubmit={markUnlocatable} className="space-y-3">
-                      <label htmlFor="unlocatable-reason" className="block text-sm font-semibold">
+                      <label htmlFor="unlocatable-reason" className="block text-base font-semibold">
                         Why can't it be located? (optional)
                       </label>
                       <input
@@ -533,7 +533,7 @@ function Triage({ email }: { email: string | null }) {
                         <button
                           type="submit"
                           disabled={busy}
-                          className="inline-flex items-center gap-1.5 rounded bg-alert px-4 py-1.5 text-sm font-semibold text-white hover:bg-[#a80c19] disabled:opacity-60"
+                          className="inline-flex items-center gap-1.5 rounded bg-alert px-4 py-1.5 text-base font-semibold text-white hover:bg-[#a80c19] disabled:opacity-60"
                         >
                           {busy && <Spinner size={14} />}
                           Mark as not locatable
@@ -541,7 +541,7 @@ function Triage({ email }: { email: string | null }) {
                         <button
                           type="button"
                           onClick={() => setMode('review')}
-                          className="rounded-lg px-3 py-2 text-sm font-semibold hover:bg-paper"
+                          className="rounded-lg px-3 py-2 text-base font-semibold hover:bg-paper"
                         >
                           Cancel
                         </button>
@@ -549,7 +549,7 @@ function Triage({ email }: { email: string | null }) {
                     </form>
                   ) : (
                     <>
-                      <div className="flex items-start gap-2 text-sm" aria-live="polite">
+                      <div className="flex items-start gap-2 text-base" aria-live="polite">
                         <PinIcon size={16} className="mt-0.5 flex-none text-muted" />
                         {pin ? (
                           <p>
@@ -572,7 +572,7 @@ function Triage({ email }: { email: string | null }) {
                           type="button"
                           onClick={() => void save()}
                           disabled={!pin || busy}
-                          className="inline-flex items-center justify-center gap-1.5 rounded bg-brand px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-hover active:bg-brand-pressed disabled:cursor-not-allowed disabled:opacity-50"
+                          className="inline-flex items-center justify-center gap-1.5 rounded bg-brand px-4 py-1.5 text-base font-semibold text-white hover:bg-brand-hover active:bg-brand-pressed disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {busy && <Spinner size={14} />}
                           Save &amp; verify
@@ -580,14 +580,14 @@ function Triage({ email }: { email: string | null }) {
                         <button
                           type="button"
                           onClick={() => move(1)}
-                          className="rounded-lg px-3 py-2 text-sm font-semibold hover:bg-paper"
+                          className="rounded-lg px-3 py-2 text-base font-semibold hover:bg-paper"
                         >
                           Skip
                         </button>
                         <button
                           type="button"
                           onClick={() => setMode('unlocatable')}
-                          className="rounded px-3 py-1.5 text-sm font-semibold text-alert hover:bg-alert-tint"
+                          className="rounded px-3 py-1.5 text-base font-semibold text-alert hover:bg-alert-tint"
                         >
                           Can't locate
                         </button>
@@ -610,11 +610,11 @@ function Triage({ email }: { email: string | null }) {
                 {load.status === 'error' && (
                   <>
                     <h2 className="font-display text-lg font-semibold">Couldn't load the review queue</h2>
-                    <p className="mt-1 text-[0.9375rem]">{load.message}</p>
+                    <p className="mt-1 text-base">{load.message}</p>
                     <button
                       type="button"
                       onClick={retryLoad}
-                      className="mt-3 inline-flex items-center justify-center gap-1.5 rounded bg-brand px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-hover active:bg-brand-pressed"
+                      className="mt-3 inline-flex items-center justify-center gap-1.5 rounded bg-brand px-4 py-1.5 text-base font-semibold text-white hover:bg-brand-hover active:bg-brand-pressed"
                     >
                       Try again
                     </button>
@@ -623,11 +623,11 @@ function Triage({ email }: { email: string | null }) {
                 {load.status === 'ready' && queue.length === 0 && queueTotal > 0 && (
                   <>
                     <h2 className="font-display text-lg font-semibold">This batch is done</h2>
-                    <p className="mt-1 text-[0.9375rem]">{formatCount(queueTotal)} more are waiting.</p>
+                    <p className="mt-1 text-base">{formatCount(queueTotal)} more are waiting.</p>
                     <button
                       type="button"
                       onClick={retryLoad}
-                      className="mt-3 inline-flex items-center justify-center gap-1.5 rounded bg-brand px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-hover active:bg-brand-pressed"
+                      className="mt-3 inline-flex items-center justify-center gap-1.5 rounded bg-brand px-4 py-1.5 text-base font-semibold text-white hover:bg-brand-hover active:bg-brand-pressed"
                     >
                       Load the next batch
                     </button>
@@ -636,14 +636,14 @@ function Triage({ email }: { email: string | null }) {
                 {load.status === 'ready' && queue.length === 0 && queueTotal === 0 && (
                   <>
                     <h2 className="font-display text-lg font-semibold">Nothing to review</h2>
-                    <p className="mt-1 text-[0.9375rem]">
-                      Every charity with a street address has a place on the map. The nightly sync adds any it can't
-                      place with confidence.
+                    <p className="mt-1 text-base">
+                      Every charity with a street address is on the map. Each night, any address the map can't match
+                      on its own shows up here.
                     </p>
                   </>
                 )}
                 {load.status === 'ready' && queue.length > 0 && (
-                  <p className="text-[0.9375rem]">Choose a charity from the list to place it.</p>
+                  <p className="text-base">Choose a charity from the list to place it.</p>
                 )}
               </div>
             )}

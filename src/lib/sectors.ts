@@ -42,8 +42,8 @@ export function sectorColour(name: string): string {
 }
 
 /**
- * Sectors with a colour first, then the grey ones, each by size; "Other" always last. The first
- * eight pills are always on show, so the legend keeps every colour even if a grey sector grows.
+ * Sectors with a colour first, then the grey ones, each by size; "Other" always last, so the
+ * coloured ones lead the sector list (the map's legend) even if a grey sector grows.
  */
 export function buildSectors(counts: Map<string, number>): SectorInfo[] {
   const named = [...counts.entries()]

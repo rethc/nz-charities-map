@@ -29,7 +29,7 @@ export function Toasts({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id:
         <div
           key={t.id}
           role={t.tone === 'error' ? 'alert' : 'status'}
-          className={`animate-toast-in pointer-events-auto flex items-start gap-3 rounded border-l-4 bg-white px-4 py-3 text-sm text-ink shadow-float ${
+          className={`animate-toast-in pointer-events-auto flex items-start gap-3 rounded border-l-4 bg-white px-4 py-3 text-base text-ink shadow-float ${
             t.tone === 'error' ? 'border-alert' : t.tone === 'success' ? 'border-fern' : 'border-brand'
           }`}
         >

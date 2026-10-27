@@ -13,8 +13,7 @@ export function useMediaQuery(query: string): boolean {
 }
 
 /*
- * Layout breakpoints. The first matches the `card:` variant in index.css, and POPUP_QUERY's
- * height matches where `pills:` ends.
+ * Layout breakpoints. The first matches the `card:` variant in index.css.
  */
 /** The header floats as a card at the top left, leaving map beside it. */
 export const CARD_QUERY = '(min-width: 768px), (min-width: 600px) and (orientation: landscape)'

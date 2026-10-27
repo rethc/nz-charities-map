@@ -19,7 +19,7 @@ export interface PartOf {
 
 const textLink = 'text-link underline-offset-2 hover:text-brand-pressed hover:underline'
 const button =
-  'inline-flex h-9 grow items-center justify-center gap-1.5 rounded px-3 text-sm font-semibold transition-colors'
+  'inline-flex h-10 grow items-center justify-center gap-1.5 rounded px-3 text-base font-semibold transition-colors'
 const buttonQuiet = `${button} border border-stroke bg-white text-ink hover:border-mist hover:bg-paper active:bg-line`
 const fieldName = 'text-sm text-muted'
 
@@ -194,7 +194,7 @@ export function CharityDetails({
         <CopyLinkButton cc={point.cc} />
       </div>
 
-      <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 border-t border-line pt-4 text-[0.9375rem] leading-snug">
+      <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 border-t border-line pt-4 text-base leading-snug">
         {info?.activity && (
           <>
             <dt className={fieldName}>Activity</dt>
@@ -324,7 +324,7 @@ function Purpose({ text }: { text: string }) {
   }, [open])
 
   return (
-    <div className="relative mt-3 text-[0.9375rem] leading-normal">
+    <div className="relative mt-3 text-base leading-normal">
       <p ref={ref} className={open ? undefined : 'line-clamp-3'}>
         <span className="sr-only">Purpose: </span>
         {text}
@@ -341,7 +341,7 @@ function Purpose({ text }: { text: string }) {
         </button>
       )}
       {open && (
-        <button type="button" aria-expanded onClick={() => setOpen(false)} className={`${textLink} mt-1 text-sm`}>
+        <button type="button" aria-expanded onClick={() => setOpen(false)} className={`${textLink} mt-1 text-base`}>
           Show less
         </button>
       )}
@@ -364,7 +364,7 @@ function Members({
 
   return (
     <section aria-labelledby={headingId} className="mt-4 flex min-h-0 flex-col border-t border-line pt-4">
-      <h3 id={headingId} className="text-sm font-semibold">
+      <h3 id={headingId} className="text-base font-semibold">
         Members on the map <span className="font-normal text-muted tabular-nums">({members.length})</span>
       </h3>
       <ul
@@ -384,7 +384,7 @@ function Members({
                 aria-hidden="true"
               />
               <span className="min-w-0">
-                <span className="block text-[0.9375rem] leading-snug font-semibold break-words">{m.name}</span>
+                <span className="block text-base leading-snug font-semibold break-words">{m.name}</span>
                 {m.place && <span className="block text-sm text-muted">{m.place}</span>}
               </span>
             </button>

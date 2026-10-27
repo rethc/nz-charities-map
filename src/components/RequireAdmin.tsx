@@ -7,7 +7,7 @@ import { FullScreenMessage } from './StatusScreens'
 
 type Access = { userId: string; result: 'admin' | 'denied' } | { userId: string; result: 'error'; message: string }
 
-const button = 'inline-flex items-center justify-center gap-1.5 rounded px-3 text-sm font-semibold transition-colors h-8 bg-brand text-white hover:bg-brand-hover active:bg-brand-pressed'
+const button = 'inline-flex items-center justify-center gap-1.5 rounded px-3 text-base font-semibold transition-colors h-9 bg-brand text-white hover:bg-brand-hover active:bg-brand-pressed'
 
 /**
  * Admins only. This is a courtesy for the UI — the database enforces the same rule

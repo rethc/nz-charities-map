@@ -17,7 +17,7 @@ export function FullScreenMessage({
           {busy ? <Spinner size={28} className="text-brand" /> : <BrandMark />}
           <h1 className="font-display text-xl font-semibold text-balance">{title}</h1>
         </div>
-        {children && <div className="space-y-4 text-sm leading-relaxed text-ink">{children}</div>}
+        {children && <div className="space-y-4 text-base leading-relaxed text-ink">{children}</div>}
       </div>
     </main>
   )
