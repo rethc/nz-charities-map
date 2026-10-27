@@ -84,8 +84,10 @@ const LAYER = {
 } as const
 const CLICKABLE = [LAYER.clusters, LAYER.points]
 
-/** Clusters and shared-address stacks: Fluent's brand blue. */
+/** Clusters, shared-address stacks and charity names: the dark ink of the site's header bars. */
 const INK = '#1a242c'
+/** The white card behind each charity's name, so names stand apart from the basemap's street names. */
+const LABEL_CARD = 'charity-label-card'
 /** Points stay clustered up to this zoom; beyond it every charity is drawn. */
 const CLUSTER_MAX_ZOOM = 14
 /** Clusters up to this size fetch their members so a click can fit them exactly. */
@@ -150,7 +152,50 @@ const pointCoords = (f: Feature): LonLat => {
   return [lon!, lat!]
 }
 
+/**
+ * A Fluent card (white, 4px corners, a hairline edge and a soft shadow) as a stretchable map image:
+ * MapLibre stretches its straight middle to fit each name and keeps the corners and shadow whole.
+ * Drawn at twice the size for sharp edges on high-density screens; sizes below are in image pixels.
+ */
+function addLabelCard(map: MapLibreMap) {
+  if (map.hasImage(LABEL_CARD)) return
+  const size = 40
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = size
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  // The card sits inside a margin that leaves room for its shadow: 4 at the sides, 2 above, 6 below.
+  const [left, top, right, bottom, radius] = [4, 2, 36, 34, 8]
+  const card = () => {
+    ctx.beginPath()
+    ctx.moveTo(left + radius, top)
+    ctx.arcTo(right, top, right, bottom, radius)
+    ctx.arcTo(right, bottom, left, bottom, radius)
+    ctx.arcTo(left, bottom, left, top, radius)
+    ctx.arcTo(left, top, right, top, radius)
+    ctx.closePath()
+  }
+  ctx.shadowColor = 'rgb(10 20 24 / 0.28)'
+  ctx.shadowBlur = 5
+  ctx.shadowOffsetY = 2
+  ctx.fillStyle = '#ffffff'
+  card()
+  ctx.fill()
+  ctx.shadowColor = 'transparent'
+  ctx.lineWidth = 2
+  ctx.strokeStyle = 'rgb(26 36 44 / 0.22)'
+  card()
+  ctx.stroke()
+  map.addImage(LABEL_CARD, ctx.getImageData(0, 0, size, size), {
+    pixelRatio: 2,
+    stretchX: [[left + radius, right - radius]],
+    stretchY: [[top + radius, bottom - radius]],
+    content: [left + 6, top + 4, right - 6, bottom - 4],
+  })
+}
+
 function addCharityLayers(map: MapLibreMap, selectedSpots: readonly number[]) {
+  addLabelCard(map)
   map.addSource(SOURCE, {
     type: 'geojson',
     data: EMPTY,
@@ -231,17 +276,21 @@ function addCharityLayers(map: MapLibreMap, selectedSpots: readonly number[]) {
     source: SOURCE,
     minzoom: 15,
     filter: filter.labels,
+    // Bigger than the street names and set on a white card, so a charity's name never reads as a road.
     layout: {
       'text-field': ['get', 'name'],
       'text-font': LABEL_FONT_BOLD,
-      'text-size': 13,
-      'text-max-width': 9,
-      'text-line-height': 1.15,
+      'text-size': ['interpolate', ['linear'], ['zoom'], 15, 15, 18, 17],
+      'text-max-width': 10,
+      'text-line-height': 1.2,
       'text-variable-anchor': ['top', 'bottom', 'left', 'right'],
-      'text-radial-offset': 1.05,
+      'text-radial-offset': 1.25,
       'text-justify': 'auto',
+      'icon-image': LABEL_CARD,
+      'icon-text-fit': 'both',
+      'icon-text-fit-padding': [1, 2, 1, 2],
     },
-    paint: { 'text-color': '#000000', 'text-halo-color': '#ffffff', 'text-halo-width': 2 },
+    paint: { 'text-color': INK },
   })
 
   // Topmost, so it is placed first: the count always shows and names keep clear of the badge.
