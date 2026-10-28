@@ -81,6 +81,8 @@ const NARROW = '(max-width: 640px)'
 const COMPACT = '(max-width: 1040px)'
 /** Fluent's own breakpoint for dialogs. */
 const PHONE_DIALOG = '@media screen and (max-width: 480px)'
+/** The list and the review pane beside it share this height, each scrolling on its own. */
+const PANE_HEIGHT = 'min(75vh, 64rem)'
 const COLUMNS = '150px minmax(0, 1fr) 72px 124px 104px'
 
 const dateFormat = new Intl.DateTimeFormat('en-NZ', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
@@ -108,7 +110,7 @@ const useStyles = makeStyles({
   split: { display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: '16px', minWidth: 0 },
   list: { padding: 0, gap: 0, overflow: 'hidden' },
   // The list scrolls in its own box, as the check lists do, so its headings stay in view.
-  listBox: { overflow: 'auto', maxHeight: 'min(75vh, 64rem)' },
+  listBox: { overflow: 'auto', maxHeight: PANE_HEIGHT },
   head: {
     display: 'grid',
     gridTemplateColumns: COLUMNS,
@@ -152,7 +154,8 @@ const useStyles = makeStyles({
   top: { color: tokens.colorNeutralForeground2 },
   num: { fontVariantNumeric: 'tabular-nums' },
   empty: { padding: '24px 16px' },
-  detail: { display: 'grid', gap: '20px', padding: '20px' },
+  // A reading pane: as tall as the list at most, scrolling on its own, so a click never moves the page.
+  detail: { display: 'grid', alignContent: 'start', gap: '20px', padding: '20px', maxHeight: PANE_HEIGHT, overflowY: 'auto' },
   section: { display: 'grid', gap: '8px', minWidth: 0 },
   badgeRow: { justifySelf: 'start' },
   checks: {
@@ -248,6 +251,12 @@ export function StatementsView() {
   const selected = visible.find((r) => keyOf(r) === picked) ?? visible[0] ?? null
   const index = selected ? visible.indexOf(selected) : -1
   const [full, setFull] = useState(false)
+  // Each review starts at its top in the pane.
+  const paneRef = useRef<HTMLDivElement>(null)
+  const selectedKey = selected ? keyOf(selected) : null
+  useEffect(() => {
+    if (selectedKey) paneRef.current?.scrollTo({ top: 0 })
+  }, [selectedKey])
 
   const previous = index > 0 ? visible[index - 1] : undefined
   const next = index >= 0 ? visible[index + 1] : undefined
@@ -419,7 +428,7 @@ export function StatementsView() {
             </Card>
 
             {selected && !compact && (
-              <Card className={mergeClasses(s.detailSide, s.detail)} aria-label="Assessment" role="region">
+              <Card ref={paneRef} className={mergeClasses(s.detailSide, s.detail)} aria-label="Assessment" role="region" tabIndex={0}>
                 <QuickView review={selected} onOpen={() => setFull(true)} />
               </Card>
             )}
