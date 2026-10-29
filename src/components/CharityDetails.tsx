@@ -2,6 +2,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { useCharityDetail } from '../hooks/useCharityDetail'
 import { directionsUrl, formatAddress, registerUrl, type CharityPoint } from '../lib/charities'
 import { isSocialPage, socialLinks } from '../lib/socials'
+import { countUse } from '../lib/usage'
 import { BackIcon, CheckIcon, CloseIcon, DirectionsIcon, ExternalIcon, LinkIcon, SocialIcon } from './Icons'
 
 interface CommonProps {
@@ -175,6 +176,7 @@ export function CharityDetails({
           href={registerUrl(point.cc)}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={() => countUse('summary')}
           className={`${button} basis-full bg-brand text-white hover:bg-brand-hover active:bg-brand-pressed roomy:basis-auto roomy:px-3`}
         >
           Open {summary}
@@ -185,6 +187,7 @@ export function CharityDetails({
           href={directionsUrl(point.lonLat)}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={() => countUse('directions')}
           className={`${buttonQuiet} roomy:grow-0 roomy:px-3`}
         >
           <DirectionsIcon size={16} />
@@ -242,7 +245,7 @@ export function CharityDetails({
             <dt className={fieldName}>Phone</dt>
             <dd>
               {tel ? (
-                <a href={tel} className={textLink}>
+                <a href={tel} onClick={() => countUse('phone')} className={textLink}>
                   {info.phone}
                 </a>
               ) : (
@@ -255,7 +258,7 @@ export function CharityDetails({
           <>
             <dt className={fieldName}>Email</dt>
             <dd>
-              <a href={`mailto:${info.email}`} className={`${textLink} break-all`}>
+              <a href={`mailto:${info.email}`} onClick={() => countUse('email')} className={`${textLink} break-all`}>
                 {info.email}
               </a>
             </dd>
@@ -269,6 +272,7 @@ export function CharityDetails({
                 href={website.href}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() => countUse('website')}
                 className={`${textLink} inline-flex max-w-full items-center gap-1.5`}
               >
                 <span className="min-w-0 truncate">{website.text}</span>
@@ -289,6 +293,7 @@ export function CharityDetails({
                   href={social.href}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={() => countUse('social')}
                   className={`${textLink} inline-flex items-center gap-1.5 whitespace-nowrap`}
                 >
                   <SocialIcon platform={social.key} className="flex-none" />
@@ -334,7 +339,10 @@ function Purpose({ text }: { text: string }) {
         <button
           type="button"
           aria-expanded={false}
-          onClick={() => setOpen(true)}
+          onClick={() => {
+            countUse('show_more')
+            setOpen(true)
+          }}
           className={`${textLink} absolute right-0 bottom-0 bg-white pl-1.5 before:absolute before:inset-y-0 before:right-full before:w-12 before:bg-linear-to-r before:from-white/0 before:to-white`}
         >
           Show more
@@ -405,6 +413,7 @@ function CopyLinkButton({ cc }: { cc: string }) {
   }, [state])
 
   async function copy() {
+    countUse('copy_link')
     const url = new URL('/', window.location.origin)
     url.searchParams.set('cc', cc)
     try {

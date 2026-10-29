@@ -15,6 +15,7 @@ import { useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNo
 import { createPortal } from 'react-dom'
 import type { CharityFeatureCollection } from '../lib/charities'
 import { boundsOf, DEFAULT_VIEW, prefersReducedMotion, type LonLat } from '../lib/geo'
+import { countUse } from '../lib/usage'
 import {
   basemapStyle,
   hideBasemapPlaces,
@@ -391,13 +392,12 @@ export function CharityMap({ data, selected, popup, initialZoom, fitPadding, onP
 
     map.addControl(new AttributionControl({ compact: true, customAttribution: MAP_ATTRIBUTION }), 'bottom-right')
     map.addControl(new NavigationControl({ showCompass: false }), 'bottom-right')
-    map.addControl(
-      new GeolocateControl({
-        positionOptions: { enableHighAccuracy: false, timeout: 10_000 },
-        fitBoundsOptions: { maxZoom: 13 },
-      }),
-      'bottom-right',
-    )
+    const locate = new GeolocateControl({
+      positionOptions: { enableHighAccuracy: false, timeout: 10_000 },
+      fitBoundsOptions: { maxZoom: 13 },
+    })
+    locate.on('geolocate', () => countUse('locate'))
+    map.addControl(locate, 'bottom-right')
     withStyleFallback(map)
     hideBasemapPlaces(map)
     map.once('load', () => {
@@ -493,6 +493,7 @@ export function CharityMap({ data, selected, popup, initialZoom, fitPadding, onP
       )
       const cluster = hits.find((f) => f.layer.id === LAYER.clusters)
       if (cluster) {
+        countUse('cluster')
         openCluster(cluster).catch((err: unknown) => console.warn('Cluster lookup failed', err))
         return
       }

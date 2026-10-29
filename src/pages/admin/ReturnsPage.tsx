@@ -8,7 +8,6 @@ import {
   Button,
   Caption1,
   Card,
-  createLightTheme,
   createTableColumn,
   DataGrid,
   DataGridBody,
@@ -36,13 +35,10 @@ import {
   TableHeaderCell,
   TableRow,
   TabList,
-  Text,
   Title3,
   tokens,
-  type BrandVariants,
   type TableColumnDefinition,
   type TableColumnId,
-  type Theme,
 } from '@fluentui/react-components'
 import {
   ArrowSync20Regular,
@@ -50,11 +46,9 @@ import {
   DataTrending20Regular,
   DocumentSearch20Regular,
   Open16Regular,
-  SignOut20Regular,
 } from '@fluentui/react-icons'
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
-import { BrandMark } from '../../components/Icons'
 import { RequireAdmin } from '../../components/RequireAdmin'
 import { useCharities } from '../../hooks/useCharities'
 import { useElementBox } from '../../hooks/useElementBox'
@@ -64,6 +58,7 @@ import type { ReturnCheckFinding, ReturnChecks } from '../../lib/database.types'
 import { formatCount } from '../../lib/dom'
 import { fold } from '../../lib/search'
 import { supabase } from '../../lib/supabase'
+import { AdminBar, Kpi, theme } from './AdminFrame'
 import { StatementsView } from './StatementsView'
 
 /**
@@ -200,92 +195,18 @@ const showDate = (s: string | null) => {
 }
 const num = (v: unknown) => (typeof v === 'number' ? v : Number(v ?? 0))
 
-/** The site's teal-blue as a Fluent brand ramp: 80 is the main colour, lower numbers darker. */
-const brand: BrandVariants = {
-  10: '#001a24', 20: '#002533', 30: '#003142', 40: '#003d52', 50: '#004a63', 60: '#005775', 70: '#006a8e', 80: '#007ea8',
-  90: '#1a8db4', 100: '#3a9cc0', 110: '#5aaccb', 120: '#7abcd6', 130: '#9bcde1', 140: '#bcdeeb', 150: '#dbeef5', 160: '#eef7fa',
-}
-/** Fluent's light theme in the site's colours, with 16px body text: easier to read than Fluent's 14px. */
-const theme: Theme = {
-  ...createLightTheme(brand),
-  colorNeutralForeground1: '#0b1419',
-  colorNeutralForeground2: '#26333a',
-  colorNeutralForeground3: '#3a4850',
-  colorNeutralBackground3: '#f5f8f9',
-  colorNeutralStroke2: '#ddedf3',
-  fontSizeBase200: '14px',
-  lineHeightBase200: '20px',
-  fontSizeBase300: '16px',
-  lineHeightBase300: '22px',
-  fontSizeBase400: '18px',
-  lineHeightBase400: '24px',
-}
-/** The dark bar along the top, as on the map and browse pages: white text, an orange focus ring. */
-const barTheme: Partial<Theme> = {
-  colorNeutralBackground1: '#1a242c',
-  colorNeutralBackground1Hover: '#2a4148',
-  colorNeutralBackground1Pressed: '#0a1418',
-  colorSubtleBackgroundHover: '#2a4148',
-  colorSubtleBackgroundPressed: '#0a1418',
-  colorNeutralForeground1: '#ffffff',
-  colorNeutralForeground1Hover: '#ffffff',
-  colorNeutralForeground1Pressed: '#ffffff',
-  colorNeutralForeground2: '#ffffff',
-  colorNeutralForeground2Hover: '#ffffff',
-  colorNeutralForeground2Pressed: '#ffffff',
-  colorNeutralForeground2BrandHover: '#ffffff',
-  colorNeutralForeground2BrandPressed: '#ffffff',
-  colorNeutralForeground3: '#94a8b2',
-  colorNeutralStroke1: '#4a6470',
-  colorNeutralStroke1Hover: '#94a8b2',
-  colorNeutralStroke1Pressed: '#94a8b2',
-  colorStrokeFocus2: '#fbb36a',
-}
 /** Chart text: labels, and the numbers along an axis. */
 const LABEL = 14
 const TICK = 13
 
 const useStyles = makeStyles({
   root: { height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: tokens.colorNeutralBackground3 },
-  appBar: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: '8px 16px',
-    padding: '8px 16px',
-    backgroundColor: tokens.colorNeutralBackground1,
-  },
-  bar: { flex: 'none' },
-  brand: { display: 'flex', alignItems: 'center', gap: '10px' },
-  appNav: { marginLeft: 'auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 8px' },
-  email: { color: tokens.colorNeutralForeground3, '@media (max-width: 640px)': { display: 'none' } },
   scroll: { flex: '1 1 auto', minHeight: 0, overflowY: 'auto' },
   page: { maxWidth: '1760px', margin: '0 auto', padding: '16px clamp(16px, 3vw, 32px) 40px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '16px' },
   head: { display: 'grid', gap: '6px' },
   titleRow: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px 12px' },
   lead: { color: tokens.colorNeutralForeground2, maxWidth: '92ch' },
   kpis: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 15rem), 1fr))', gap: '16px' },
-  kpi: { display: 'grid', gap: '8px', alignContent: 'start' },
-  kpiHead: { display: 'flex', alignItems: 'center', gap: '12px', color: tokens.colorNeutralForeground2 },
-  icon: {
-    display: 'grid',
-    placeItems: 'center',
-    width: '36px',
-    height: '36px',
-    borderRadius: tokens.borderRadiusLarge,
-    flex: 'none',
-    backgroundColor: tokens.colorBrandBackground2,
-    color: tokens.colorBrandForeground1,
-  },
-  danger: { backgroundColor: tokens.colorStatusDangerBackground1, color: tokens.colorStatusDangerForeground1 },
-  warning: { backgroundColor: tokens.colorStatusWarningBackground1, color: tokens.colorStatusWarningForeground3 },
-  kpiValue: {
-    fontFamily: tokens.fontFamilyBase,
-    fontSize: tokens.fontSizeHero800,
-    lineHeight: tokens.lineHeightHero800,
-    fontWeight: tokens.fontWeightSemibold,
-    fontVariantNumeric: 'tabular-nums',
-  },
   muted: { color: tokens.colorNeutralForeground3 },
   tabs: { flexWrap: 'wrap', borderBottom: `1px solid ${tokens.colorNeutralStroke2}` },
   wide: { gridColumn: '1 / -1' },
@@ -423,27 +344,7 @@ function Returns({ email }: { email: string | null }) {
 
   return (
     <FluentProvider theme={theme} className={s.root}>
-      <FluentProvider theme={barTheme} className={s.bar}>
-      <header className={s.appBar}>
-        <div className={s.brand}>
-          <BrandMark size={24} />
-          <Subtitle2>NZ Charities Map</Subtitle2>
-          <Caption1 className={s.muted}>Admin</Caption1>
-        </div>
-        <nav aria-label="Admin" className={s.appNav}>
-          <Button appearance="subtle" onClick={() => navigate('/admin/triage')}>
-            Location review
-          </Button>
-          <Button appearance="subtle" as="a" href="/">
-            Public map
-          </Button>
-          {email && <Caption1 className={s.email}>{email}</Caption1>}
-          <Button appearance="secondary" icon={<SignOut20Regular />} onClick={() => void supabase.auth.signOut()}>
-            Sign out
-          </Button>
-        </nav>
-      </header>
-      </FluentProvider>
+      <AdminBar email={email} current="/admin/returns" />
 
       <div className={s.scroll}>
         <main className={s.page}>
@@ -539,20 +440,6 @@ function Returns({ email }: { email: string | null }) {
         </main>
       </div>
     </FluentProvider>
-  )
-}
-
-function Kpi({ icon, tone, label, value, foot }: { icon: ReactNode; tone?: 'danger' | 'warning'; label: string; value: string; foot: string }) {
-  const s = useStyles()
-  return (
-    <Card className={s.kpi}>
-      <div className={s.kpiHead}>
-        <span className={mergeClasses(s.icon, tone === 'danger' && s.danger, tone === 'warning' && s.warning)}>{icon}</span>
-        <Body1>{label}</Body1>
-      </div>
-      <Text className={s.kpiValue}>{value}</Text>
-      <Caption1 className={s.muted}>{foot}</Caption1>
-    </Card>
   )
 }
 

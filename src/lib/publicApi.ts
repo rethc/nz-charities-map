@@ -6,7 +6,7 @@
 import type { CharityDetail } from './database.types'
 import { env } from './env'
 
-function headers(): Record<string, string> {
+export function headers(): Record<string, string> {
   const h: Record<string, string> = { apikey: env.supabaseKey, Accept: 'application/json' }
   // Legacy anon keys are JWTs and also go in Authorization; new sb_publishable_ keys must not.
   if (env.supabaseKey.startsWith('eyJ')) h.Authorization = `Bearer ${env.supabaseKey}`

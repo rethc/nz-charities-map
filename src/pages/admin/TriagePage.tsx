@@ -333,6 +333,9 @@ function Triage({ email }: { email: string | null }) {
           <Link to="/admin/returns" className="rounded px-2 py-1 font-semibold text-white hover:bg-ink-soft">
             Annual Return checks
           </Link>
+          <Link to="/admin/usage" className="rounded px-2 py-1 font-semibold text-white hover:bg-ink-soft">
+            Map usage
+          </Link>
           <Link to="/" className="rounded px-2 py-1 font-semibold text-white hover:bg-ink-soft">
             Public map
           </Link>

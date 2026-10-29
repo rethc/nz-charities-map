@@ -1,0 +1,11 @@
+{
+  "name": "nz-charities-map-statements",
+  "private": true,
+  "type": "module",
+  "description": "Statement review pipeline: download and extract the statements a batch reads (see README.md).",
+  "dependencies": {
+    "mupdf": "1.28.1",
+    "pdfjs-dist": "4.10.38",
+    "playwright-core": "1.64.1"
+  }
+}

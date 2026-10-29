@@ -166,6 +166,16 @@ export type Database = {
         Args: { p_reviews: Json }
         Returns: number
       }
+      /** Anyone: adds one to today's count for a kind of press (src/lib/usage.ts). Added by the usage_counts migration. */
+      count_use: {
+        Args: { p_kind: string }
+        Returns: undefined
+      }
+      /** Admins only. Returns UsageCounts. */
+      get_usage_counts: {
+        Args: never
+        Returns: Json
+      }
     }
     Enums: { [_ in never]: never }
     CompositeTypes: { [_ in never]: never }
@@ -325,4 +335,17 @@ export type SyncRun = {
 export type SyncStatus = {
   counts: Partial<Record<GeocodeStatus | 'PENDING', number>>
   last_run: SyncRun | null
+}
+
+/** get_usage_counts(): anonymous counts of presses on the public map (New Zealand dates). */
+export type UsageCounts = {
+  today: string
+  /** The first day anything was counted, or null before the first press. */
+  since: string | null
+  /** Each kind's total over the last 7 days, the last 30 days, and the last 12 months (this month and the 11 before). */
+  kinds: { kind: string; d7: number; d30: number; m12: number }[]
+  /** Every kind added up, per day for the last 30 days (days with none are missing). */
+  days: { day: string; count: number }[]
+  /** Every kind added up, per month for the last 12 months (keyed by the month's first day). */
+  months: { month: string; count: number }[]
 }

@@ -21,6 +21,7 @@ import { formatCount, isTypingTarget } from '../lib/dom'
 import { DEFAULT_VIEW, MOBILE_ZOOM, NZ_MAINLAND, type LonLat } from '../lib/geo'
 import { searchCharities } from '../lib/search'
 import { OTHER_COLOUR } from '../lib/sectors'
+import { countUse } from '../lib/usage'
 
 interface Group {
   ccs: string[]
@@ -83,6 +84,14 @@ export function MapPage() {
   const titleId = useId()
 
   const debouncedQuery = useDebouncedValue(query, 200)
+  // A search counts once the typing has stopped, so "sal", "salv", "salvation" is one search.
+  const settledQuery = useDebouncedValue(query, 1500).trim()
+  const countedQuery = useRef(settledQuery) // a search arriving in a link isn't a press
+  useEffect(() => {
+    if (settledQuery.length < 2 || settledQuery === countedQuery.current) return
+    countedQuery.current = settledQuery
+    countUse('search')
+  }, [settledQuery])
   const search = useMemo(
     () => (dataset ? searchCharities(dataset.points, debouncedQuery) : null),
     [dataset, debouncedQuery],
@@ -135,6 +144,8 @@ export function MapPage() {
     if (!dataset.byCc.has(cc)) {
       setSelection(null)
       setNotice(`${cc} isn't on the map. It may be deregistered, or its address hasn't been placed yet.`)
+    } else {
+      countUse('shared_link')
     }
   }, [dataset])
 
@@ -183,6 +194,7 @@ export function MapPage() {
     }
     if (pick.type === 'charity') setSelection({ kind: 'charity', cc: pick.cc, group: null, focus: false })
     else setSelection({ kind: 'group', group: { ccs: pick.ccs, lonLat: pick.lonLat }, focus: false })
+    countUse(pick.type === 'charity' ? 'pin' : 'shared_pin')
     setCamera((c) => ({ key: c.key + 1 }))
   }, [])
 
@@ -195,15 +207,17 @@ export function MapPage() {
   }, [])
 
   const toggleSector = useCallback((name: string) => {
+    if (!sectors.has(name)) countUse('sector')
     setSectors((prev) => {
       const next = new Set(prev)
       if (next.has(name)) next.delete(name)
       else next.add(name)
       return next
     })
-  }, [])
+  }, [sectors])
   const clearSectors = useCallback(() => setSectors(new Set()), [])
   const clearFilters = () => {
+    countUse('clear_filters')
     setQuery('')
     setSectors(new Set())
   }
@@ -284,7 +298,10 @@ export function MapPage() {
         partOf={partOf}
         members={selectedPoint.isGroup ? dataset.members.get(selectedPoint.cc) : undefined}
         colourOf={colourOf}
-        onGoTo={showCharity}
+        onGoTo={(p) => {
+          countUse('related')
+          showCharity(p)
+        }}
         titleId={titleId}
         focusOnMount={focus}
         onClose={() => closeSelection(focus)}
@@ -302,7 +319,10 @@ export function MapPage() {
         titleId={titleId}
         focusOnMount={focus}
         onClose={() => closeSelection(focus)}
-        onPick={(p) => setSelection({ kind: 'charity', cc: p.cc, group, focus: true })}
+        onPick={(p) => {
+          countUse('shared_list')
+          setSelection({ kind: 'charity', cc: p.cc, group, focus: true })
+        }}
       />
     )
   }
@@ -339,7 +359,10 @@ export function MapPage() {
         {filtered && visible.length > 0 && visible.length <= MAX_FIT && (
           <button
             type="button"
-            onClick={() => mapRef.current?.fitPoints(visible.map((p) => p.lonLat))}
+            onClick={() => {
+              countUse('zoom_to')
+              mapRef.current?.fitPoints(visible.map((p) => p.lonLat))
+            }}
             className={linkButton}
           >
             Zoom to these
@@ -368,6 +391,7 @@ export function MapPage() {
               Square-cornered with an icon, so it reads as a way to another page, not one of the round filter pills. */}
           <a
             href="/browse/"
+            onClick={() => countUse('browse')}
             className="ml-auto inline-flex h-9 flex-none items-center justify-center gap-1.5 rounded border border-ink-line px-3 text-base font-semibold text-white transition-colors hover:border-mist hover:bg-ink-soft active:bg-bar"
           >
             <ListIcon size={16} />
@@ -382,7 +406,10 @@ export function MapPage() {
           onChange={setQuery}
           results={search?.top ?? null}
           totalMatches={search?.matches.size ?? 0}
-          onPick={showCharity}
+          onPick={(p) => {
+            countUse('search_pick')
+            showCharity(p)
+          }}
           colourOf={colourOf}
           inputRef={searchRef}
         />
