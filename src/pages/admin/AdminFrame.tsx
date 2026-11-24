@@ -103,6 +103,7 @@ const useStyles = makeStyles({
 const PAGES = [
   { path: '/admin/triage', label: 'Location review' },
   { path: '/admin/returns', label: 'Annual Return checks' },
+  { path: '/admin/intelligence', label: 'Intelligence' },
   { path: '/admin/usage', label: 'Map usage' },
 ] as const
 

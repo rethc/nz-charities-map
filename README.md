@@ -64,6 +64,55 @@ The results never reach the public site: an automated check can be wrong. Setup:
 `supabase/migrations/20261027010000_return_checks.sql`, then the workflow once. Try it without
 the database: `uv run scripts/return_checks.py --dry-run findings.json`.
 
+## Intelligence (admins only)
+
+`scripts/intelligence.py` reads every registered charity's last five years from the same public
+data feed each week (the "Intelligence" workflow): its annual returns, its officers and what it
+says it does. Three pages at `/admin/intelligence` show the result:
+
+* **Sector overview.** The charities with the most signals, how many each signal picks out,
+  income and spending year by year, returns filed on time, who charities serve and where. The
+  sector and size filters apply to all of it.
+* **Watchlist.** Every charity ranked by one measure, or by how many signals it trips. Filter by
+  size and sector, search, and download the list as a CSV file. The address keeps the view, so a
+  list can be shared.
+* **Charity profile.** One charity: five years of figures, its board year by year, when each
+  return was due and filed, and every measure against charities of its size, with a sentence
+  saying why a signal tripped. It also lists what the annual return checks found.
+
+Fourteen measures, eight of them **signals** with a "worth a look" and a "priority" level
+(`SIGNALS` in the script holds the thresholds, and the pages show them beside each measure):
+
+* **Money.** Total income; income change; *assets outgrowing spending* (net assets grew faster
+  than spending over three years); *net assets as years of spending*; *current ratio*.
+* **Activity.** Trading share of income; *years of near-zero activity*; share spent overseas.
+* **Governance.** *Income per officer* (three officers or fewer); officer turnover; boards shared
+  with other charities.
+* **Reporting.** *Late or missing returns*; *return totals that are blank or don't add up*;
+  *modified audit opinions*.
+
+Three things it does on purpose:
+
+* **Size, not tier.** A charity is compared with others that spend about as much, using the
+  tiers' own limits. Hundreds of small charities tick Tier 1 on their return and older returns
+  carry no tier, so the declared tier makes a poor group to compare within.
+* **When a return was filed.** The feed has no filing date, only when a return was last changed,
+  which moves whenever a return is corrected. The register numbers returns in the order they
+  arrive, so the script takes the middle change date of the 100 returns numbered either side.
+  Against the returns that carry an approval date it lands within a few days.
+* **No officer's name is kept.** Shared boards are found by matching names, which the script
+  hashes as it reads them. The register has no id for a person, so a match may be two people:
+  the pages say so, and names on more than 40 boards are left out.
+
+Like the annual return checks, the results never reach the public site: a measure is a reason
+to look, not a finding. Setup: run `supabase/migrations/20261124000000_intelligence.sql`, then
+the workflow once (about 10 minutes).
+
+To try the pages with no database: `uv run scripts/intelligence.py --dry-run .intel-preview`,
+then `npm run dev` and open `http://localhost:5173/admin/intelligence`. The dev server serves that
+folder to the pages with no sign-in; it is never part of a build, and never in git. Add
+`--raw feed.json.gz` to keep the feed in a file and skip the download next time.
+
 ## Data licences
 
 * **Charity data:** © Charities Services, licensed under CC BY 3.0 NZ.

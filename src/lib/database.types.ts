@@ -176,6 +176,21 @@ export type Database = {
         Args: never
         Returns: Json
       }
+      /** Admins only: every charity's measures, read by src/lib/intel.ts. Null before the first run. Added by the intelligence migration. */
+      get_intel_snapshot: {
+        Args: never
+        Returns: Json
+      }
+      /** Admins only: one charity's last five years, its return checks and whether it's on the map. */
+      get_intel_charity: {
+        Args: { p_cc: string }
+        Returns: Json
+      }
+      /** Service role only (scripts/intelligence.py): switches the pages to a run it has uploaded. */
+      publish_intel_run: {
+        Args: { p_run_id: number }
+        Returns: number
+      }
     }
     Enums: { [_ in never]: never }
     CompositeTypes: { [_ in never]: never }

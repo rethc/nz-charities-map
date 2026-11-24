@@ -12,3 +12,6 @@ __pycache__/
 # Statement review batches hold charity findings: never in git (see scripts/statements/README.md).
 scripts/statements/batches/
 statement-reviews*.json
+
+# A local preview of the intelligence pages (scripts/intelligence.py --dry-run): charity findings, never in git.
+.intel-preview/

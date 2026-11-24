@@ -1,0 +1,51 @@
+name: Intelligence
+
+# Works out every registered charity's measures (money, activity, governance, reporting) from the
+# Charities Register's public data, for the site's admin area (/admin/intelligence).
+# The log shows counts only: this repository's Action logs are public, the results are not.
+
+on:
+  schedule:
+    # Weekly, Sunday 19:00 UTC = Monday 07:00 NZST / 08:00 NZDT: an hour after the annual
+    # return checks, whose findings each charity's profile also shows.
+    - cron: "0 19 * * 0"
+  workflow_dispatch:
+
+concurrency:
+  group: intelligence
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    runs-on: ubuntu-24.04
+    # Reading the feed takes about 10 minutes: every return for six years, and every serving officer.
+    timeout-minutes: 45
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      GEOCODER_CONTACT: ${{ vars.GEOCODER_CONTACT || format('https://github.com/{0}', github.repository) }}
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check required secrets
+        run: |
+          missing=0
+          for name in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
+            if [ -z "${!name}" ]; then echo "::error::Repository secret $name is not set"; missing=1; fi
+          done
+          exit $missing
+
+      - uses: astral-sh/setup-uv@v10.3.2
+        with:
+          enable-cache: true
+          cache-dependency-glob: scripts/intelligence.py
+
+      - name: Unit tests
+        run: uvx --python 3.14 --with httpx pytest scripts/tests -q
+
+      - name: Work out the measures
+        run: uv run --python 3.14 scripts/intelligence.py
