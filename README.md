@@ -71,31 +71,39 @@ data feed each week (the "Intelligence" workflow): its annual returns, its offic
 says it does. Three pages at `/admin/intelligence` show the result:
 
 * **Sector overview.** The charities with the most signals, how many each signal picks out,
-  income and spending year by year, returns filed on time, who charities serve and where. The
-  sector and size filters apply to all of it.
-* **Watchlist.** Every charity ranked by one measure, or by how many signals it trips. Filter by
-  size and sector, search, and download the list as a CSV file. The address keeps the view, so a
-  list can be shared.
-* **Charity profile.** One charity: five years of figures, its board year by year, when each
-  return was due and filed, and every measure against charities of its size, with a sentence
-  saying why a signal tripped. It also lists what the annual return checks found.
+  revenue and expenses year by year, annual returns filed on time, who charities serve and
+  where. The sector and reporting tier filters apply to all of it.
+* **Watchlist.** Every charity ranked by one measure, or by how many signals it has. Sort by any
+  column, filter by reporting tier and sector, search, and download the list as a CSV file. The
+  address keeps the view, so a list can be shared.
+* **Charity profile.** One charity: 5 years of figures, when each annual return was due and
+  filed, its officers year by year, and every measure compared with the charities in its
+  reporting tier, with a sentence saying why it has a signal. It also lists what the annual
+  return checks found.
 
-Fourteen measures, eight of them **signals** with a "worth a look" and a "priority" level
-(`SIGNALS` in the script holds the thresholds, and the pages show them beside each measure):
+The pages are built from Fluent's own components (data grid, combobox, dialog, card header,
+skeletons) and its spacing, colour and type tokens. Their wording follows the External
+Reporting Board's (XRB) terms (revenue, expenses, net assets, reporting tier) and plain English
+as the government's style guide asks for it.
 
-* **Money.** Total income; income change; *assets outgrowing spending* (net assets grew faster
-  than spending over three years); *net assets as years of spending*; *current ratio*.
-* **Activity.** Trading share of income; *years of near-zero activity*; share spent overseas.
-* **Governance.** *Income per officer* (three officers or fewer); officer turnover; boards shared
-  with other charities.
-* **Reporting.** *Late or missing returns*; *return totals that are blank or don't add up*;
-  *modified audit opinions*.
+14 measures, 8 of them **signals** with a "worth a look" and a "priority" level (`SIGNALS` in
+the script holds the thresholds, and "About these measures" on the pages lists them):
+
+* **Money.** Total revenue; change in revenue; *net assets growing faster than expenses* (over
+  3 years); *net assets compared with annual expenses*; *current assets compared with current
+  liabilities*.
+* **Activity.** Revenue from goods, services and commercial activities; *years with little or
+  no activity*; funds spent overseas.
+* **Governance.** *Revenue per officer* (3 or fewer officers); officers leaving each year;
+  officers shared with other charities.
+* **Annual returns.** *Late or missing annual returns*; *totals that are blank or do not add
+  up*; *modified audit opinions*.
 
 Three things it does on purpose:
 
-* **Size, not tier.** A charity is compared with others that spend about as much, using the
-  tiers' own limits. Hundreds of small charities tick Tier 1 on their return and older returns
-  carry no tier, so the declared tier makes a poor group to compare within.
+* **Reporting tier from expenses.** A charity's reporting tier is worked out from its annual
+  expenses and the XRB's limits, not read off its annual return: hundreds of small charities
+  tick Tier 1, and older returns carry no tier. Where the two differ, the profile says so.
 * **When a return was filed.** The feed has no filing date, only when a return was last changed,
   which moves whenever a return is corrected. The register numbers returns in the order they
   arrive, so the script takes the middle change date of the 100 returns numbered either side.

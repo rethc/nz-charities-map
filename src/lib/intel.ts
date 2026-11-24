@@ -70,9 +70,9 @@ export interface IntelRow {
   cc: string
   name: string
   nameKey: string
-  /** The size band, named after the tier a charity of that size reports under. 0: no return to judge by. */
+  /** Its reporting tier, worked out from its annual expenses. 0: no annual return to work it out from. */
   band: number
-  /** The tier on its latest return. */
+  /** The tier stated on its latest annual return, which may differ. */
   tier: number | null
   sector: string | null
   spend: number | null
@@ -137,106 +137,121 @@ export interface IntelCharity {
 export interface MeasureInfo {
   key: MeasureKey
   group: Group
+  /** In full, as a heading. */
   title: string
-  /** The signal's name on a chip, as short as it goes. */
-  chip?: string
+  /** As short as it goes, for a menu, a badge or a chart. A signal's says what is unusual. */
+  short: string
   description: string
   format: (v: number) => string
 }
 
-/** $18.6m, $668k, $940: short, as beside a charity's name. */
+/** $18.6m, $668k, $940: short, for a table or a chart. */
 export function money(v: number): string {
   const sign = v < 0 ? '−' : ''
   const a = Math.abs(v)
-  if (a >= 1e9) return `${sign}$${(a / 1e9).toFixed(1)}b`
-  if (a >= 1e6) return `${sign}$${(a / 1e6).toFixed(1)}m`
+  if (a >= 999_950_000) return `${sign}$${(a / 1e9).toFixed(1)}b`
+  if (a >= 999_950) return `${sign}$${(a / 1e6).toFixed(1)}m`
   if (a >= 1e3) return `${sign}$${Math.round(a / 1e3)}k`
   return `${sign}$${Math.round(a)}`
+}
+/** $18.6 million, $668,000: for a sentence, as the government's style guide writes money. */
+export function moneyWords(v: number): string {
+  const sign = v < 0 ? '−' : ''
+  const a = Math.abs(v)
+  if (a >= 999_950_000) return `${sign}$${(a / 1e9).toFixed(1).replace(/\.0$/, '')} billion`
+  if (a >= 999_950) return `${sign}$${(a / 1e6).toFixed(1).replace(/\.0$/, '')} million`
+  return `${sign}$${formatCount(a)}`
 }
 /** $18,551,818: in full, as in a table of figures. */
 export const dollars = (v: number) => `${v < 0 ? '−' : ''}$${formatCount(Math.abs(v))}`
 export const percent = (v: number) => `${Math.round(v * 100)}%`
 export const signedPercent = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.round(Math.abs(v) * 100)}%`
-const times = (v: number) => (v >= 999 ? '999×+' : `${v >= 100 ? Math.round(v) : v.toFixed(1)}×`)
-const points = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${formatCount(Math.abs(v))} pts`
+const yearsHeld = (v: number) => (v >= 999 ? '999+ years' : `${v >= 10 ? Math.round(v) : v.toFixed(1)} ${v === 1 ? 'year' : 'years'}`)
+const points = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${formatCount(Math.abs(v))} points`
 const count = (v: number) => formatCount(v)
 
+export const GROUP_ORDER: Group[] = ['money', 'activity', 'governance', 'reporting']
 export const GROUPS: Record<Group, string> = {
   money: 'Money',
   activity: 'Activity',
   governance: 'Governance',
-  reporting: 'Reporting',
+  reporting: 'Annual returns',
 }
 
+/**
+ * The words are the External Reporting Board's (XRB): revenue, expenses, net assets, current
+ * assets and liabilities. A Tier 4 charity reports cash, so its revenue is its operating receipts
+ * and its expenses its operating payments.
+ */
 export const MEASURES: MeasureInfo[] = [
   {
-    key: 'income', group: 'money', title: 'Total income',
-    description: 'Total income on the latest return.',
+    key: 'income', group: 'money', title: 'Total revenue', short: 'Total revenue',
+    description: 'Total revenue on the latest annual return. For a Tier 4 charity, its operating receipts.',
     format: money,
   },
   {
-    key: 'income_change', group: 'money', title: 'Income change, latest year',
-    description: 'Income on the latest return against the year before.',
+    key: 'income_change', group: 'money', title: 'Change in revenue', short: 'Change in revenue',
+    description: 'Revenue on the latest annual return compared with the year before.',
     format: signedPercent,
   },
   {
-    key: 'asset_growth_gap', group: 'money', title: 'Asset growth beyond spending', chip: 'Assets outgrowing spend',
-    description: 'How much faster net assets grew than spending over three years, in percentage points. A charity building up funds faster than it puts them to use.',
+    key: 'asset_growth_gap', group: 'money', title: 'Net assets growing faster than expenses', short: 'Net assets outgrowing expenses',
+    description: 'How much faster net assets grew than expenses over 3 years, in percentage points. A high figure can mean a charity is building up funds faster than it uses them.',
     format: points,
   },
   {
-    key: 'reserves_years', group: 'money', title: 'Net assets ÷ annual spending', chip: 'High assets vs spend',
-    description: 'Net assets as years of spending at the latest rate: 25× means it spent a twenty-fifth of what it holds. A Tier 4 (cash) return gives resources less commitments, or cash held, instead of net assets.',
-    format: times,
+    key: 'reserves_years', group: 'money', title: 'Net assets compared with annual expenses', short: 'High net assets',
+    description: 'Net assets divided by annual expenses: how many years the charity could keep going at its current rate. A Tier 4 charity reports resources less commitments, or cash held, instead of net assets.',
+    format: yearsHeld,
   },
   {
-    key: 'current_ratio', group: 'money', title: 'Current ratio', chip: 'Low liquidity',
-    description: 'Current assets against current liabilities on the latest return: under 1, it owes more within the year than it has to hand. Tier 4 returns have no balance sheet.',
+    key: 'current_ratio', group: 'money', title: 'Current assets compared with current liabilities', short: 'Low current assets',
+    description: 'Current assets divided by current liabilities on the latest annual return. Under 1 means the charity owes more in the next 12 months than it has available to pay. Tier 4 charities do not report these.',
     format: (v) => (v >= 100 ? String(Math.round(v)) : v.toFixed(v < 10 ? 2 : 1)),
   },
   {
-    key: 'trading_share', group: 'activity', title: 'Trading share of income',
-    description: 'Trading and commercial income as a share of all income on the latest return. The forms from 2024 ask only for commercial activities, so newer returns show less than older ones.',
+    key: 'trading_share', group: 'activity', title: 'Revenue from goods, services and commercial activities', short: 'Commercial revenue',
+    description: 'The share of revenue that comes from providing goods or services and from commercial activities, on the latest annual return. The annual return forms from 2024 ask for commercial activities only, so newer returns show less than older ones.',
     format: percent,
   },
   {
-    key: 'dormant_years', group: 'activity', title: 'Years of near-zero activity', chip: 'Near-zero activity',
-    description: 'Years of the last five whose return shows under $1,000 of both income and spending.',
+    key: 'dormant_years', group: 'activity', title: 'Years with little or no activity', short: 'Little or no activity',
+    description: 'How many of the last 5 annual returns show under $1,000 of both revenue and expenses.',
     format: count,
   },
   {
-    key: 'overseas_share', group: 'activity', title: 'Share spent overseas',
-    description: 'The share of its spending the charity says goes overseas, from its register record.',
+    key: 'overseas_share', group: 'activity', title: 'Funds spent overseas', short: 'Funds spent overseas',
+    description: 'The share of its funds the charity says it spends overseas, from its record on the Charities Register.',
     format: percent,
   },
   {
-    key: 'income_per_officer', group: 'governance', title: 'Income per officer', chip: 'Thin board',
-    description: 'Income on the latest return for each officer serving now. The signal: a lot of money overseen by three people or fewer.',
+    key: 'income_per_officer', group: 'governance', title: 'Revenue per officer', short: 'Few officers',
+    description: 'Revenue on the latest annual return divided by the number of current officers. The signal is a lot of money overseen by 3 or fewer officers.',
     format: money,
   },
   {
-    key: 'officer_turnover', group: 'governance', title: 'Officer turnover',
-    description: 'The share of the board that left in a year, averaged over the last five.',
+    key: 'officer_turnover', group: 'governance', title: 'Officers leaving each year', short: 'Officers leaving',
+    description: 'The share of officers who left in a year, averaged over the last 5 years.',
     format: percent,
   },
   {
-    key: 'shared_boards', group: 'governance', title: 'Boards shared with other charities',
-    description: 'Other registered charities with a serving officer of the same name. The register has no id for a person, so two people with one name count as one; very common names are left out.',
+    key: 'shared_boards', group: 'governance', title: 'Officers shared with other charities', short: 'Shared officers',
+    description: 'How many other registered charities have a current officer with the same name. The register has no identifier for a person, so 2 people with the same name count as 1. Very common names are left out.',
     format: count,
   },
   {
-    key: 'late_returns', group: 'reporting', title: 'Late or missing returns', chip: 'Late returns',
-    description: 'Years of the last five whose return was filed more than 60 days after it was due, or not at all. Members of a registered group are left out: the group files for them.',
+    key: 'late_returns', group: 'reporting', title: 'Late or missing annual returns', short: 'Late annual returns',
+    description: 'How many of the last 5 annual returns were filed more than 60 days after the due date, or not filed. Members of a registered group are left out, because the group files for them.',
     format: count,
   },
   {
-    key: 'return_quality', group: 'reporting', title: 'Return errors and blank totals', chip: 'Return errors',
-    description: "Totals on the latest return that are blank or don't add up: income less spending against the surplus, assets less liabilities against net assets, net assets against equity.",
+    key: 'return_quality', group: 'reporting', title: 'Totals that are blank or do not add up', short: 'Totals do not add up',
+    description: 'Problems with the totals on the latest annual return: total revenue or expenses left blank, revenue less expenses not matching the surplus or deficit, or assets less liabilities not matching net assets.',
     format: count,
   },
   {
-    key: 'modified_audits', group: 'reporting', title: 'Modified audit opinions', chip: 'Modified audit',
-    description: 'Years of the last five for which the charity declared a modified audit opinion: qualified, adverse or a disclaimer.',
+    key: 'modified_audits', group: 'reporting', title: 'Modified audit opinions', short: 'Modified audit opinion',
+    description: 'How many of the last 5 annual returns report a modified audit opinion: a qualified opinion, an adverse opinion or a disclaimer of opinion.',
     format: count,
   },
 ]
@@ -245,31 +260,47 @@ export const isSignal = (meta: IntelMeta, key: MeasureKey): key is SignalKey => 
 
 export const LEVEL_NAME: Record<Level, string> = { 0: 'No signal', 1: 'Worth a look', 2: 'Priority' }
 
-/** "Tier 3 size": the size band, by the tier a charity of that size reports under. */
-export const bandName = (band: number) => (band ? `Tier ${band} size` : 'No recent return')
+/** What a signal is, for the pages to say once. */
+export const SIGNAL_MEANS = 'A signal is a figure unusual enough to be worth checking. It is a reason to look, not a finding.'
+
+/**
+ * A charity's reporting tier, worked out from its annual expenses and the XRB's tier limits
+ * (`band` in the data). 0: no annual return in the last 5 years to work it out from.
+ */
+export const bandName = (band: number) => (band ? `Tier ${band}` : 'No recent annual return')
 export const BAND_RANGE: Record<number, string> = {
-  1: '$33m or more a year',
-  2: '$5m to $33m a year',
-  3: '$140,000 to $5m a year',
-  4: 'under $140,000 a year',
-  0: 'no return in the last five years',
+  1: 'annual expenses over $33 million',
+  2: 'annual expenses of $5 million to $33 million',
+  3: 'annual expenses of $140,000 to $5 million',
+  4: 'annual operating payments under $140,000',
+  0: 'no annual return in the last 5 years',
 }
 export const BANDS = [1, 2, 3, 4] as const
+export const TIER_MEANS =
+  "A charity's reporting tier is worked out from the annual expenses on its latest annual return, using the External Reporting Board's (XRB) tier limits. A charity can choose to report under a higher tier, so the tier on its annual return may differ."
 
-/** Where a signal starts, in words: "Worth a look from 10×, priority from 25×, with net assets of $1.0m or more." */
+/** What else must hold before a signal counts, as a sentence. Null when nothing else must. */
+export function ruleCondition(meta: IntelMeta, key: SignalKey): string | null {
+  const rule = meta.signals[key]
+  const floor = moneyWords(rule.floor ?? 0)
+  const conditions: Partial<Record<SignalKey, string>> = {
+    asset_growth_gap: `It only counts when net assets grew by ${floor} or more.`,
+    reserves_years: `It only counts when net assets are ${floor} or more.`,
+    current_ratio: `It only counts when current liabilities are ${floor} or more, and more than current assets and investments together.`,
+    income_per_officer: `It only counts when the charity has ${rule.officers ?? 3} or fewer officers.`,
+  }
+  return conditions[key] ?? null
+}
+
+/** Where a signal starts, in words: "Worth a look from 25 years. Priority from 100 years. It only counts when…" */
 export function ruleText(meta: IntelMeta, key: SignalKey): string {
   const rule = meta.signals[key]
   const f = MEASURE[key].format
   const range = rule.low
-    ? `Worth a look under ${f(rule.look)}, priority under ${f(rule.priority)}`
-    : `Worth a look from ${f(rule.look)}, priority from ${f(rule.priority)}`
-  const floor: Partial<Record<SignalKey, string>> = {
-    asset_growth_gap: `where net assets grew by ${money(rule.floor ?? 0)} or more`,
-    reserves_years: `with net assets of ${money(rule.floor ?? 0)} or more`,
-    current_ratio: `with ${money(rule.floor ?? 0)} or more owed within the year, more than its current assets and investments together`,
-    income_per_officer: `with ${rule.officers ?? 3} officers or fewer`,
-  }
-  return `${range}${floor[key] ? `, ${floor[key]}` : ''}.`
+    ? `Worth a look under ${f(rule.look)}. Priority under ${f(rule.priority)}.`
+    : `Worth a look from ${f(rule.look)}. Priority from ${f(rule.priority)}.`
+  const condition = ruleCondition(meta, key)
+  return condition ? `${range} ${condition}` : range
 }
 
 /** The level a value would have, leaving aside what else must hold. For colouring a distribution. */
@@ -305,7 +336,7 @@ export function median(values: number[]): number | null {
 }
 
 const peerCache = new WeakMap<Intel, Map<string, number[]>>()
-/** Every value of a measure among charities of one size band, ascending. */
+/** Every value of a measure among charities in one reporting tier, ascending. */
 export function peers(intel: Intel, key: MeasureKey, band: number): number[] {
   let cache = peerCache.get(intel)
   if (!cache) peerCache.set(intel, (cache = new Map()))
@@ -323,12 +354,12 @@ export function peers(intel: Intel, key: MeasureKey, band: number): number[] {
   return sorted
 }
 
-/** "Higher than 92% of Tier 2 size charities", or where it sits when that says little. */
+/** "Higher than 92% of Tier 2 charities", or where it sits when that says little. */
 export function standing(intel: Intel, row: IntelRow, key: MeasureKey): string {
   const v = row.values[key]
-  if (v === null) return 'Not on its returns'
+  if (v === null) return 'Not reported on its annual returns'
   const sorted = peers(intel, key, row.band)
-  if (sorted.length < 20) return 'Too few charities of its size to compare'
+  if (sorted.length < 20) return 'Too few charities in its tier to compare'
   const below = shareBelow(sorted, v)
   const above = 1 - shareBelow(sorted, v + 1e-9)
   const among = `${bandName(row.band)} charities`
@@ -336,7 +367,7 @@ export function standing(intel: Intel, row: IntelRow, key: MeasureKey): string {
   if (1 - below - above >= 0.5) return `The same as most ${among}`
   if (below >= 0.75) return `Higher than ${Math.floor(below * 100)}% of ${among}`
   if (above >= 0.75) return `Lower than ${Math.floor(above * 100)}% of ${among}`
-  return `Mid-range for ${among}`
+  return `About the middle for ${among}`
 }
 
 // ---- Loading ----------------------------------------------------------------------------------

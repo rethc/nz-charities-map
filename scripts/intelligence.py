@@ -19,27 +19,31 @@ Measures. The eight marked * are signals: each has a "worth a look" and a "prior
 and the watchlist ranks charities by how many they trip.
 
 Money
-  income               total income on the latest return
-  income_change        income against the year before
-  asset_growth_gap  *  net assets grew faster than spending over three years (percentage points)
-  reserves_years    *  net assets as years of spending
-  current_ratio     *  current assets against current liabilities (low is the signal)
+  income               total revenue on the latest return
+  income_change        revenue compared with the year before
+  asset_growth_gap  *  net assets grew faster than expenses over 3 years (percentage points)
+  reserves_years    *  net assets as years of expenses
+  current_ratio     *  current assets compared with current liabilities (low is the signal)
 Activity
-  trading_share        share of income from trading and commercial activities, as the form asks
-  dormant_years     *  years of the last five with next to no income or spending
-  overseas_share       share of spending the charity says goes overseas
+  trading_share        share of revenue from goods, services and commercial activities
+  dormant_years     *  years of the last 5 with next to no revenue or expenses
+  overseas_share       share of its funds the charity says it spends overseas
 Governance
-  income_per_officer*  income for each current officer, where there are three or fewer
-  officer_turnover     share of the board leaving each year, on average
+  income_per_officer*  revenue for each current officer, where there are 3 or fewer
+  officer_turnover     share of the officers leaving each year, on average
   shared_boards        other charities with an officer of the same name
 Reporting
   late_returns      *  years of the last five with a late or missing return
   return_quality    *  totals on the latest return that are blank, or don't add up
   modified_audits   *  years of the last five with a modified audit opinion declared
 
-A charity is compared with others of its size, not of its declared tier: some small charities
-tick Tier 1, and some returns carry no tier. The size bands use the tiers' own limits on a
-year's spending (under $140,000, $5m and $33m).
+The words are the External Reporting Board's (XRB): revenue, expenses, net assets. For a Tier 4
+charity, which reports cash, revenue means operating receipts and expenses operating payments;
+the script's own names for them (income, spend, funds) follow the feed's columns.
+
+A charity is compared with others in its tier, worked out from its annual expenses and the
+XRB's limits (under $140,000, $5 million and $33 million), not read off its return: some small
+charities tick Tier 1, and some returns carry no tier.
 
 When a return was filed isn't in the feed. Where a return has no approval date, it is worked
 out from the register's own numbering: returns are numbered in the order they arrive, so the
@@ -172,15 +176,24 @@ to_date = rc.to_date
 # ---------------------------------------------------------------------------
 
 def money(value: float) -> str:
-    """$18.6m, $668k, $940: short, for sentences."""
+    """$18.6 million, $668,000, $940: for sentences, as the government's style guide writes money."""
     sign, v = ("-" if value < 0 else ""), abs(value)
-    if v >= 1e9:
-        return f"{sign}${v / 1e9:.1f}b"
-    if v >= 1e6:
-        return f"{sign}${v / 1e6:.1f}m"
-    if v >= 1e3:
-        return f"{sign}${v / 1e3:.0f}k"
-    return f"{sign}${v:.0f}"
+    if v >= 999_950_000:
+        return f"{sign}${v / 1e9:.1f} billion"
+    if v >= 999_950:
+        return f"{sign}${v / 1e6:.1f} million"
+    return f"{sign}${round(v, -3 if v >= 10_000 else 0):,.0f}"
+
+
+def change(share: float) -> str:
+    """grew 208%, fell 12%, did not change."""
+    if abs(share) < 0.005:
+        return "did not change"
+    return f"{'grew' if share > 0 else 'fell'} {abs(share):.0%}"
+
+
+# What a charity holds, in the Tier 1 to 3 standards' words, or a Tier 4 (cash) return's.
+FUNDS_NAME = {"net_assets": "net assets", "resources": "resources less commitments", "cash": "cash held"}
 
 
 def rounded(value: float | None, places: int = 0) -> float | int | None:
@@ -492,8 +505,8 @@ def quality_issues(r: dict[str, Any]) -> list[str]:
     issues: list[str] = []
     income, spend = num(r.get("TotalGrossIncome")), num(r.get("TotalExpenditure"))
     if income is None or spend is None:
-        blank = " and ".join(w for w, v in (("total income", income), ("total spending", spend)) if v is None)
-        issues.append(f"The {blank} is blank.")
+        blank = " and ".join(w for w, v in (("revenue", income), ("expenses", spend)) if v is None)
+        issues.append(f"Total {blank} {'are' if ' and ' in blank else 'is'} blank.")
 
     def off(a: float, b: float, scale: float) -> bool:
         return abs(a - b) > max(MISMATCH_FLOOR, MISMATCH_SHARE * abs(scale))
@@ -503,11 +516,12 @@ def quality_issues(r: dict[str, Any]) -> list[str]:
         surplus = num(r.get("NetSurplusDeficitForTheYear"))
     if income is not None and spend is not None and surplus is not None and (income or spend) and surplus:
         if off(income - spend, surplus, max(income, spend)):
-            issues.append(f"Income less spending is {money(income - spend)}, but the return gives a surplus of {money(surplus)}.")
+            issues.append(f"Revenue less expenses is {money(income - spend)}, but the annual return shows a "
+                          f"{'deficit' if surplus < 0 else 'surplus'} of {money(abs(surplus))}.")
     assets, owed, net = num(r.get("TotalAssets")), num(r.get("TotalLiabilities")), num(r.get("Totalassetslesstotalliabilities"))
     if assets is not None and owed is not None and net is not None and (assets or owed) and net:
         if off(assets - owed, net, assets):
-            issues.append(f"Assets less liabilities come to {money(assets - owed)}, but the return gives net assets of {money(net)}.")
+            issues.append(f"Assets less liabilities is {money(assets - owed)}, but the annual return shows net assets of {money(net)}.")
     return issues
 
 
@@ -545,8 +559,9 @@ def measure(c: Charity, today: date) -> None:
             c.levels["asset_growth_gap"] = level("asset_growth_gap", gap, grew >= SIGNALS["asset_growth_gap"]["floor"])
             if c.levels["asset_growth_gap"]:
                 why["asset_growth_gap"] = (
-                    f"What it holds grew {funds_growth:+.0%} from {base.fy} to {latest.fy} ({money(base.funds)} to "
-                    f"{money(latest.funds)}) while its spending changed {spend_growth:+.0%} ({money(base.spend)} to {money(latest.spend)}).")
+                    f"{FUNDS_NAME[latest.funds_basis or 'net_assets'].capitalize()} {change(funds_growth)} from {base.fy} to "
+                    f"{latest.fy} ({money(base.funds)} to {money(latest.funds)}). Expenses {change(spend_growth)} "
+                    f"({money(base.spend)} to {money(latest.spend)}).")
 
         # Years of spending held.
         if latest.funds is not None and latest.spend is not None and latest.funds > 0:
@@ -554,9 +569,10 @@ def measure(c: Charity, today: date) -> None:
             v["reserves_years"] = ratio
             c.levels["reserves_years"] = level("reserves_years", ratio, latest.funds >= SIGNALS["reserves_years"]["floor"])
             if c.levels["reserves_years"]:
-                held = "more than a thousand years" if ratio >= 999 else f"{ratio:.1f} years"
+                held = "more than 999 years" if ratio >= 999 else f"{ratio:.0f} years"
                 why["reserves_years"] = (
-                    f"It holds {money(latest.funds)} and spent {money(latest.spend)} in {latest.fy}: {held} of spending.")
+                    f"{FUNDS_NAME[latest.funds_basis or 'net_assets'].capitalize()} of {money(latest.funds)} and expenses of "
+                    f"{money(latest.spend)} in {latest.fy}. At that rate, what it holds would last {held}.")
 
         # Current assets against current liabilities.
         owed_now, has_now = num(r.get("AllCurrentLiabilities")), current_assets(r)
@@ -568,8 +584,8 @@ def measure(c: Charity, today: date) -> None:
             c.levels["current_ratio"] = level("current_ratio", ratio, material)
             if c.levels["current_ratio"]:
                 why["current_ratio"] = (
-                    f"Current liabilities of {money(owed_now)} against current assets of {money(has_now)}"
-                    + (f" and investments of {money(invested)}" if invested else "") + f" at its {latest.fy} year end.")
+                    f"Current liabilities of {money(owed_now)} and current assets of {money(has_now)}"
+                    + (f", with investments of {money(invested)}," if invested else "") + f" at its {latest.fy} balance date.")
 
         # Trading.
         trade = trading_income(r)
@@ -583,7 +599,7 @@ def measure(c: Charity, today: date) -> None:
             c.levels["income_per_officer"] = level("income_per_officer", per, serving <= SIGNALS["income_per_officer"]["officers"])
             if c.levels["income_per_officer"]:
                 people = "1 officer" if serving == 1 else f"{serving} officers"
-                why["income_per_officer"] = f"Income of {money(latest.income)} in {latest.fy} with {people} on the register."
+                why["income_per_officer"] = f"Revenue of {money(latest.income)} in {latest.fy}, with {people} on the register."
 
         # The latest return's totals.
         c.quality = quality_issues(r)
@@ -599,14 +615,14 @@ def measure(c: Charity, today: date) -> None:
         c.levels["dormant_years"] = level("dormant_years", len(quiet))
         if c.levels["dormant_years"]:
             why["dormant_years"] = (
-                f"Income and spending both under {money(NEAR_ZERO)} in {len(quiet)} of its last {len(pub)} returns "
-                f"({', '.join(map(str, quiet))}).")
+                f"Revenue and expenses were both under {money(NEAR_ZERO)} in {len(quiet)} of its last {len(pub)} annual "
+                f"returns ({', '.join(map(str, quiet))}).")
 
         opinions = [y.fy for y in pub if y.modified]
         v["modified_audits"] = len(opinions)
         c.levels["modified_audits"] = level("modified_audits", len(opinions))
         if opinions:
-            why["modified_audits"] = f"Declared a modified audit opinion for {', '.join(map(str, opinions))}."
+            why["modified_audits"] = f"Reported a modified audit opinion for {', '.join(map(str, opinions))}."
 
     # Spending overseas, as the charity declares it.
     overseas = num(c.org.get("PercentageSpentOverseas"))
@@ -626,7 +642,7 @@ def measure(c: Charity, today: date) -> None:
                 parts.append(f"{len(late)} late ({', '.join(str(y.fy) for y in late)})")
             if gone:
                 parts.append(f"{len(gone)} not filed ({', '.join(str(y.fy) for y in gone)})")
-            why["late_returns"] = f"Of its last {len(judged)} returns due: {' and '.join(parts)}."
+            why["late_returns"] = f"Of its last {len(judged)} annual returns due: {' and '.join(parts)}."
 
     # The board leaving, a year at a time.
     if c.officers:
@@ -705,10 +721,10 @@ def analyse(feed: Feed, today: date) -> tuple[dict[str, Any], list[Charity]]:
         c = Charity(org=org, cc=cc, name=name, span=years, officers=officers, view=views.get(org["OrganisationId"], {}))
         measure(c, today)
         if rc.is_group_member(org):
-            c.note = "A member of a registered group: the group files its annual returns."
+            c.note = "This charity is a member of a registered group. The group files one annual return for all its members."
         elif all(y.status == "unknown" for y in years):
-            c.note = (f"No annual return of its own in the public data since {fetch_start.year}. "
-                      "It may file through a group the data doesn't record it in.")
+            c.note = (f"The public data has no annual return from this charity since {fetch_start.year}. "
+                      "It may file through a group that the data does not show.")
         charities.append(c)
     link_boards(charities)
 

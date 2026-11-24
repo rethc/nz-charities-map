@@ -75,8 +75,8 @@ const useStyles = makeStyles({
   legendItem: { display: 'inline-flex', alignItems: 'center', gap: '6px' },
   swatch: { width: '12px', height: '12px', borderRadius: '2px', flex: 'none' },
   clickable: { cursor: 'pointer' },
-  track: { position: 'relative', height: '8px', borderRadius: '4px', backgroundColor: '#e1eaee', margin: '6px 7px' },
-  trackFill: { position: 'absolute', insetBlock: 0, left: 0, borderRadius: '4px', opacity: 0.45 },
+  track: { position: 'relative', height: '8px', borderRadius: tokens.borderRadiusCircular, backgroundColor: tokens.colorNeutralBackground5, margin: '6px 7px' },
+  trackFill: { position: 'absolute', insetBlock: 0, left: 0, borderRadius: tokens.borderRadiusCircular, opacity: 0.45 },
   trackMark: {
     position: 'absolute',
     top: '50%',

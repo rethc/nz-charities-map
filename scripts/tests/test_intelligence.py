@@ -190,7 +190,8 @@ def test_assets_outgrowing_spending_needs_real_money():
     c = one(grew)
     assert c.values["asset_growth_gap"] == pytest.approx(190)  # +200% against +10%
     assert c.levels["asset_growth_gap"] == 1
-    assert "+200%" in c.why["asset_growth_gap"]
+    assert c.why["asset_growth_gap"] == (
+        "Net assets grew 200% from 2022 to 2025 ($1.0 million to $3.0 million). Expenses grew 10% ($500,000 to $550,000).")
 
     small = [ret("2022-03-31", net=10_000, spend=50_000), ret("2023-03-31"), ret("2024-03-31"),
              ret("2025-03-31", net=60_000, spend=50_000)]
@@ -257,11 +258,13 @@ def test_a_thin_board_is_a_lot_of_money_and_three_officers_or_fewer():
 def test_return_totals_that_do_not_add_up():
     assert it.quality_issues(ret("2025-03-31", SurplusDeficit=10_000)) == []
     off = it.quality_issues(ret("2025-03-31", income=100_000, spend=90_000, SurplusDeficit=40_000))
-    assert len(off) == 1 and "surplus" in off[0]
+    assert off == ["Revenue less expenses is $10,000, but the annual return shows a surplus of $40,000."]
+    loss = it.quality_issues(ret("2025-03-31", income=100_000, spend=90_000, SurplusDeficit=-40_000))
+    assert "a deficit of $40,000" in loss[0]
     # A small slip isn't worth a look.
     assert it.quality_issues(ret("2025-03-31", income=100_000, spend=90_000, SurplusDeficit=12_000)) == []
     blank = it.quality_issues(ret("2025-03-31", income=None))
-    assert blank == ["The total income is blank."]
+    assert blank == ["Total revenue is blank."]
     sheet = it.quality_issues(ret("2025-03-31", TotalAssets=900_000, TotalLiabilities=100_000, net=500_000))
     assert len(sheet) == 1 and "net assets" in sheet[0]
     c = one([*five()[:-1], ret("2025-03-31", income=None, TotalAssets=900_000, TotalLiabilities=100_000, net=500_000)])
@@ -275,6 +278,18 @@ def test_modified_audit_opinions_are_counted_by_year():
     c = one(returns)
     assert c.values["modified_audits"] == 3 and c.levels["modified_audits"] == 2
     assert "2021, 2022, 2023" in c.why["modified_audits"]
+
+
+@pytest.mark.parametrize(("value", "words"), [
+    (940, "$940"), (9_499, "$9,499"), (668_400, "$668,000"), (999_949, "$1,000,000"), (1_000_000, "$1.0 million"),
+    (18_551_818, "$18.6 million"), (2_340_000_000, "$2.3 billion"), (-47_300, "-$47,000"),
+])
+def test_money_is_written_as_the_government_style_guide_does(value, words):
+    assert it.money(value) == words
+
+
+def test_change_in_words():
+    assert it.change(2.08) == "grew 208%" and it.change(-0.124) == "fell 12%" and it.change(0.001) == "did not change"
 
 
 def test_funds_follow_the_tier():

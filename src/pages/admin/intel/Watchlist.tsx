@@ -3,38 +3,46 @@ import {
   Button,
   Caption1,
   Card,
-  Label,
+  createTableColumn,
+  DataGrid,
+  DataGridBody,
+  DataGridCell,
+  DataGridHeader,
+  DataGridHeaderCell,
+  DataGridRow,
+  Field,
   makeStyles,
-  mergeClasses,
+  MenuGroup,
+  MenuGroupHeader,
+  MenuItemRadio,
+  MenuList,
   SearchBox,
   Select,
-  Subtitle2,
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableHeaderCell,
-  TableRow,
-  ToggleButton,
+  Subtitle1,
   tokens,
-  useId,
+  type LabelProps,
+  type TableColumnDefinition,
+  type TableColumnId,
 } from '@fluentui/react-components'
-import { ArrowDownload20Regular, ArrowSortDown20Regular, ArrowSortUp20Regular } from '@fluentui/react-icons'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowDownload20Regular, Search24Regular } from '@fluentui/react-icons'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useSearchParams } from 'react-router'
 import { useMediaQuery } from '../../../hooks/useMediaQuery'
 import { formatCount } from '../../../lib/dom'
 import {
   bandName,
+  BAND_RANGE,
   BANDS,
+  GROUP_ORDER,
   GROUPS,
   isSignal,
+  LEVEL_NAME,
   MEASURE,
   MEASURES,
   money,
   quantile,
   ruleText,
-  type Group,
+  TIER_MEANS,
   type Intel,
   type IntelRow,
   type Level,
@@ -42,50 +50,40 @@ import {
 } from '../../../lib/intel'
 import { fold } from '../../../lib/search'
 import { CharityLink } from './Overview'
-import { LevelBadge, SignalChips } from './shell'
+import { EmptyState, HelpLabel, LevelBadge, MeasureGuide, SignalChips, Stat } from './shell'
 
-/** Every charity ranked by one measure, or by how many signals it trips. */
+/** Every charity ranked by one measure, or by how many signals it has. */
 
 type Pick = MeasureKey | 'combined'
+type Sort = { sortColumn: TableColumnId | undefined; sortDirection: 'ascending' | 'descending' }
+/** A charity with its place in the list as sorted. */
+interface Ranked {
+  row: IntelRow
+  rank: number
+}
+
 const PAGE = 100
-const GROUP_ORDER: Group[] = ['money', 'activity', 'governance', 'reporting']
+const COMBINED = 'All signals combined'
 
 const useStyles = makeStyles({
-  layout: { display: 'grid', gridTemplateColumns: '17rem minmax(0, 1fr)', alignItems: 'start', gap: '16px', '@media (max-width: 960px)': { gridTemplateColumns: 'minmax(0, 1fr)' } },
-  rail: { display: 'grid', gap: '2px', padding: '12px' },
-  railGroup: { color: tokens.colorNeutralForeground3, padding: '12px 8px 2px', fontSize: tokens.fontSizeBase200, fontWeight: tokens.fontWeightSemibold },
-  item: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: '8px',
-    width: '100%',
-    padding: '6px 8px',
-    border: 'none',
-    borderRadius: tokens.borderRadiusMedium,
-    backgroundColor: 'transparent',
-    color: tokens.colorNeutralForeground1,
-    fontFamily: 'inherit',
-    fontSize: tokens.fontSizeBase300,
-    lineHeight: tokens.lineHeightBase300,
-    textAlign: 'start',
-    cursor: 'pointer',
-    ':hover': { backgroundColor: tokens.colorNeutralBackground1Hover },
-    ':focus-visible': { outline: `2px solid ${tokens.colorStrokeFocus2}`, outlineOffset: '-2px' },
+  layout: {
+    display: 'grid',
+    gridTemplateColumns: '19rem minmax(0, 1fr)',
+    alignItems: 'start',
+    gap: tokens.spacingHorizontalL,
+    '@media (max-width: 1100px)': { gridTemplateColumns: 'minmax(0, 1fr)' },
   },
-  itemOn: { backgroundColor: tokens.colorBrandBackground2, fontWeight: tokens.fontWeightSemibold, ':hover': { backgroundColor: tokens.colorBrandBackground2 } },
-  itemCount: { color: tokens.colorNeutralForeground3, fontVariantNumeric: 'tabular-nums', fontWeight: tokens.fontWeightRegular, flex: 'none' },
-  main: { display: 'grid', gap: '16px', minWidth: 0 },
-  card: { display: 'grid', gap: '12px', alignContent: 'start', minWidth: 0 },
-  headText: { display: 'grid', gap: '4px', alignContent: 'start', maxWidth: '92ch' },
+  rail: { padding: tokens.spacingVerticalS },
+  railNote: { color: tokens.colorNeutralForeground3, padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalS} ${tokens.spacingVerticalXS}` },
+  main: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: tokens.spacingVerticalL, minWidth: 0 },
+  card: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: tokens.spacingVerticalM, alignContent: 'start', minWidth: 0 },
+  headText: { display: 'grid', gap: tokens.spacingVerticalXS, maxWidth: '88ch' },
   muted: { color: tokens.colorNeutralForeground3 },
-  tiles: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 12rem), 1fr))', gap: '8px' },
-  tile: { display: 'grid', gap: '2px', alignContent: 'start', padding: '10px 14px', borderRadius: tokens.borderRadiusMedium, backgroundColor: tokens.colorNeutralBackground3, borderInlineStartWidth: '4px', borderInlineStartStyle: 'solid', borderInlineStartColor: 'transparent' },
-  tileValue: { fontSize: tokens.fontSizeBase600, lineHeight: tokens.lineHeightBase600, fontWeight: tokens.fontWeightSemibold },
-  toolbar: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px 12px' },
-  pills: { display: 'flex', flexWrap: 'wrap', gap: '4px' },
-  search: { width: 'min(100%, 18rem)' },
-  spacer: { marginLeft: 'auto' },
+  stats: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 13rem), 1fr))', gap: tokens.spacingHorizontalM },
+  filters: { display: 'flex', flexWrap: 'wrap', alignItems: 'end', gap: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}` },
+  field: { minWidth: '11rem' },
+  search: { minWidth: 'min(100%, 16rem)', flex: '1 1 16rem', maxWidth: '22rem' },
+  commands: { display: 'flex', alignItems: 'center', gap: tokens.spacingHorizontalM, marginLeft: 'auto' },
   gridBox: {
     overflow: 'auto',
     maxHeight: 'min(76vh, 64rem)',
@@ -94,13 +92,26 @@ const useStyles = makeStyles({
     backgroundColor: tokens.colorNeutralBackground1,
   },
   gridHead: { position: 'sticky', top: 0, zIndex: 2, backgroundColor: tokens.colorNeutralBackground1, boxShadow: `0 1px 0 ${tokens.colorNeutralStroke2}` },
-  rank: { width: '56px', color: tokens.colorNeutralForeground3, fontVariantNumeric: 'tabular-nums' },
-  name: { display: 'grid', gap: '2px', padding: '8px 0', minWidth: '14rem' },
-  figure: { width: '12rem', textAlign: 'end', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' },
-  income: { width: '7rem', textAlign: 'end', fontVariantNumeric: 'tabular-nums' },
-  signalCell: { padding: '8px 0' },
+  rank: { color: tokens.colorNeutralForeground3, fontVariantNumeric: 'tabular-nums' },
+  name: { display: 'grid', gap: tokens.spacingVerticalXXS, padding: `${tokens.spacingVerticalS} 0`, minWidth: 0 },
+  number: { fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' },
+  chips: { padding: `${tokens.spacingVerticalS} 0` },
   end: { height: '1px' },
 })
+
+/** Column widths, as on the annual return checks: names and signals share the spare room. `min` is in px. */
+const COLUMN: Record<string, { grow: number; min: number }> = {
+  rank: { grow: 0, min: 48 },
+  name: { grow: 3, min: 220 },
+  income: { grow: 0, min: 104 },
+  value: { grow: 0, min: 176 },
+  signals: { grow: 3, min: 260 },
+}
+const CELL_PADDING = 16
+function columnStyle(id: TableColumnId): CSSProperties {
+  const { grow, min } = COLUMN[String(id)] ?? { grow: 1, min: 120 }
+  return { flex: grow ? `${grow} 1 0` : `0 0 ${min + CELL_PADDING}px`, minWidth: min + CELL_PADDING }
+}
 
 function csvCell(value: string | number | null) {
   const text = value === null ? '' : String(value)
@@ -110,20 +121,19 @@ function csvCell(value: string | number | null) {
 export function Watchlist({ intel }: { intel: Intel }) {
   const s = useStyles()
   const { meta } = intel
-  const narrow = useMediaQuery('(max-width: 960px)')
-  const compact = useMediaQuery('(max-width: 720px)')
+  const stacked = useMediaQuery('(max-width: 1100px)')
+  const narrow = useMediaQuery('(max-width: 900px)')
+  const compact = useMediaQuery('(max-width: 640px)')
   const [params, setParams] = useSearchParams()
-  const measureId = useId('measure')
 
   const pick: Pick = MEASURES.find((m) => m.key === params.get('m'))?.key ?? 'combined'
   const info = pick === 'combined' ? null : MEASURE[pick]
   const signal = info && isSignal(meta, info.key) ? info.key : null
   const rule = signal ? meta.signals[signal] : null
   const levelled = pick === 'combined' || signal !== null
-  const size = BANDS.find((b) => String(b) === params.get('size')) ?? null
+  const tier = BANDS.find((b) => String(b) === params.get('tier')) ?? null
   const sector = meta.sectors.includes(params.get('sector') ?? '') ? params.get('sector') : null
-  const atLeast: Level = !levelled ? 0 : params.get('flagged') === '2' && signal ? 2 : params.get('flagged') ? 1 : 0
-  const lowFirst = params.get('order') === 'low' || (params.get('order') === null && Boolean(rule?.low))
+  const atLeast: Level = !levelled ? 0 : params.get('show') === '2' && signal ? 2 : params.get('show') ? 1 : 0
   const query = params.get('q') ?? ''
 
   const set = (changes: Record<string, string | null>) => {
@@ -135,10 +145,15 @@ export function Watchlist({ intel }: { intel: Intel }) {
     setParams(next, { replace: true })
   }
 
-  /** Charities of the size and sector picked: what the counts describe. */
+  // The order last chosen for each measure: a signal where low is unusual starts lowest first.
+  const [sorts, setSorts] = useState<Partial<Record<Pick, Sort>>>({})
+  const lowFirst = Boolean(rule?.low)
+  const sort = useMemo<Sort>(() => sorts[pick] ?? { sortColumn: 'value', sortDirection: lowFirst ? 'ascending' : 'descending' }, [sorts, pick, lowFirst])
+
+  /** Charities in the tier and sector picked: what the figures above the list describe. */
   const scoped = useMemo(
-    () => intel.rows.filter((r) => (!size || r.band === size) && (!sector || r.sector === sector)),
-    [intel, size, sector],
+    () => intel.rows.filter((r) => (!tier || r.band === tier) && (!sector || r.sector === sector)),
+    [intel, tier, sector],
   )
   const valueOf = useMemo(() => (pick === 'combined' ? (r: IntelRow) => r.signals : (r: IntelRow) => r.values[pick]), [pick])
   const levelFor = useMemo(
@@ -147,51 +162,40 @@ export function Watchlist({ intel }: { intel: Intel }) {
   )
   const withValue = useMemo(() => scoped.filter((r) => valueOf(r) !== null), [scoped, valueOf])
 
-  const listed = useMemo(() => {
+  const listed = useMemo<Ranked[]>(() => {
     const q = fold(query.trim())
-    const sign = lowFirst ? 1 : -1
+    const bySignals = (a: IntelRow, b: IntelRow) => a.signals - b.signals || a.priority - b.priority
+    const compare: Record<string, (a: IntelRow, b: IntelRow) => number> = {
+      name: (a, b) => a.name.localeCompare(b.name),
+      income: (a, b) => (a.values.income ?? 0) - (b.values.income ?? 0),
+      value: pick === 'combined' ? bySignals : (a, b) => valueOf(a)! - valueOf(b)!,
+      signals: bySignals,
+    }
+    const column = String(sort.sortColumn)
+    const by = compare[column] ?? compare.value!
+    const sign = sort.sortDirection === 'ascending' ? 1 : -1
+    // A charity with no revenue to sort by goes last, whichever way the column is sorted.
+    const blank = (r: IntelRow) => (column === 'income' && r.values.income === null ? 1 : 0)
     return withValue
       .filter((r) => levelFor(r) >= atLeast && (!q || r.nameKey.includes(q) || r.cc.toLowerCase().includes(q)))
-      .sort((a, b) =>
-        pick === 'combined'
-          ? sign * (a.signals - b.signals) || sign * (a.priority - b.priority) || (b.values.income ?? 0) - (a.values.income ?? 0)
-          : sign * (valueOf(a)! - valueOf(b)!) || (b.values.income ?? 0) - (a.values.income ?? 0),
-      )
-  }, [withValue, query, atLeast, lowFirst, pick, levelFor, valueOf])
+      .sort((a, b) => blank(a) - blank(b) || sign * by(a, b) || (b.values.income ?? 0) - (a.values.income ?? 0))
+      .map((row, i) => ({ row, rank: i + 1 }))
+  }, [withValue, query, atLeast, sort, pick, levelFor, valueOf])
 
-  // Continuous scroll, as on the annual return checks: more rows load as the end comes into view.
-  // A changed list starts again from its first rows.
-  const listKey = `${pick}|${size}|${sector}|${atLeast}|${lowFirst}|${query}`
-  const [paging, setPaging] = useState({ key: listKey, shown: PAGE })
-  const shown = paging.key === listKey ? paging.shown : PAGE
-  const boxRef = useRef<HTMLDivElement>(null)
-  const endRef = useRef<HTMLDivElement>(null)
-  const total = listed.length
-  useEffect(() => {
-    const end = endRef.current
-    if (shown >= total || !end) return
-    const observer = new IntersectionObserver(
-      (entries) => entries.some((e) => e.isIntersecting) && setPaging((m) => ({ key: listKey, shown: (m.key === listKey ? m.shown : PAGE) + PAGE })),
-      { root: boxRef.current, rootMargin: '0px 0px 400px 0px' },
-    )
-    observer.observe(end)
-    return () => observer.disconnect()
-  }, [shown, total, listKey])
-
-  const title = info ? info.title : 'All signals combined'
+  const title = info ? info.title : COMBINED
   const format = useMemo(() => (info ? info.format : (v: number) => `${formatCount(v)} ${v === 1 ? 'signal' : 'signals'}`), [info])
 
   /** The figures above the list: how many the signal picks out, and what a usual figure is. */
-  const tiles = useMemo(() => {
-    const share = (n: number) => (scoped.length ? ` · ${((n / scoped.length) * 100).toFixed(1)}%` : '')
+  const stats = useMemo(() => {
+    const share = (n: number) => (scoped.length ? `${((n / scoped.length) * 100).toFixed(1)}% of ${formatCount(scoped.length)} charities` : '')
     if (pick === 'combined') {
       const on = scoped.filter((r) => r.signals >= meta.combined_threshold).length
       const more = scoped.filter((r) => r.signals > meta.combined_threshold).length
       const high = scoped.filter((r) => r.priority > 0).length
       return [
-        { label: `On the watchlist: ${meta.combined_threshold} or more signals`, value: formatCount(on), foot: `of ${formatCount(scoped.length)} charities${share(on)}`, level: 1 as Level },
-        { label: `${meta.combined_threshold + 1} or more signals`, value: formatCount(more), foot: 'the shortest list to start from', level: 0 as Level },
-        { label: 'With a signal at priority', value: formatCount(high), foot: 'whatever their number of signals', level: 2 as Level },
+        { label: `On the watchlist (${meta.combined_threshold} or more signals)`, value: formatCount(on), foot: share(on), level: 1 as Level },
+        { label: `${meta.combined_threshold + 1} or more signals`, value: formatCount(more), foot: 'a shorter list to start from', level: 0 as Level },
+        { label: 'With a signal at priority', value: formatCount(high), foot: share(high), level: 2 as Level },
       ]
     }
     const sorted = withValue.map((r) => valueOf(r)!).sort((a, b) => a - b)
@@ -200,29 +204,29 @@ export function Watchlist({ intel }: { intel: Intel }) {
       return v === null ? '—' : format(v)
     }
     const usual = [
-      { label: 'A usual figure', value: at(0.5), foot: 'half of charities are above it, half below', level: 0 as Level },
+      { label: 'Middle figure (median)', value: at(0.5), foot: 'half of charities are above it and half below', level: 0 as Level },
       rule?.low
-        ? { label: 'The lowest tenth', value: `under ${at(0.1)}`, foot: `of ${formatCount(sorted.length)} charities with a figure`, level: 0 as Level }
-        : { label: 'The highest tenth', value: `over ${at(0.9)}`, foot: `of ${formatCount(sorted.length)} charities with a figure`, level: 0 as Level },
+        ? { label: 'Lowest 10% of charities', value: `under ${at(0.1)}`, foot: `of ${formatCount(sorted.length)} with a figure`, level: 0 as Level }
+        : { label: 'Highest 10% of charities', value: `over ${at(0.9)}`, foot: `of ${formatCount(sorted.length)} with a figure`, level: 0 as Level },
     ]
-    if (!signal) return [{ label: 'The lowest quarter', value: `under ${at(0.25)}`, foot: 'a quarter of charities are below it', level: 0 as Level }, ...usual]
+    if (!signal) return [{ label: 'Lowest 25% of charities', value: `under ${at(0.25)}`, foot: `of ${formatCount(sorted.length)} with a figure`, level: 0 as Level }, ...usual]
     const look = scoped.filter((r) => r.levels[signal] === 1).length
     const high = scoped.filter((r) => r.levels[signal] === 2).length
     return [
-      { label: 'Worth a look', value: formatCount(look), foot: `of ${formatCount(scoped.length)} charities${share(look)}`, level: 1 as Level },
-      { label: 'Priority', value: formatCount(high), foot: `of ${formatCount(scoped.length)} charities${share(high)}`, level: 2 as Level },
+      { label: LEVEL_NAME[1], value: formatCount(look), foot: share(look), level: 1 as Level },
+      { label: LEVEL_NAME[2], value: formatCount(high), foot: share(high), level: 2 as Level },
       ...usual,
     ]
   }, [pick, scoped, withValue, valueOf, format, signal, rule, meta])
 
   const download = () => {
-    const head = ['Rank', 'CC number', 'Charity', 'Size', 'Tier on latest return', 'Sector', 'Income', title, 'Level', 'Signals', 'Signals tripped']
-    const lines = listed.map((r, i) =>
+    const head = ['Rank', 'CC number', 'Charity', 'Reporting tier', 'Tier on latest annual return', 'Sector', 'Total revenue', title, 'Level', 'Signals', 'Which signals']
+    const lines = listed.map(({ row: r, rank }) =>
       [
-        i + 1, r.cc, r.name, bandName(r.band), r.tier, r.sector, r.values.income, valueOf(r),
-        signal ? ['', 'Worth a look', 'Priority'][r.levels[signal]] : '',
+        rank, r.cc, r.name, bandName(r.band), r.tier, r.sector, r.values.income, valueOf(r),
+        signal ? ['', LEVEL_NAME[1], LEVEL_NAME[2]][r.levels[signal]] : '',
         r.signals,
-        meta.signal_order.filter((k) => r.levels[k] > 0).map((k) => MEASURE[k].chip ?? MEASURE[k].title).join('; '),
+        meta.signal_order.filter((k) => r.levels[k] > 0).map((k) => MEASURE[k].short).join('; '),
       ].map((v) => csvCell(v ?? null)).join(','),
     )
     const url = URL.createObjectURL(new Blob([`﻿${head.map(csvCell).join(',')}\n${lines.join('\n')}\n`], { type: 'text/csv;charset=utf-8' }))
@@ -238,195 +242,274 @@ export function Watchlist({ intel }: { intel: Intel }) {
     for (const k of meta.signal_order) out.set(k, scoped.filter((r) => r.levels[k] > 0).length)
     return out
   }, [scoped, meta])
-  const choose = (next: Pick) => set({ m: next === 'combined' ? null : next, order: null, flagged: null })
+  const countOf = (key: Pick) => (counts.has(key) ? formatCount(counts.get(key)!) : undefined)
+  const choose = (next: Pick) => set({ m: next === 'combined' ? null : next, show: null })
+
+  const columns = useMemo<TableColumnDefinition<Ranked>[]>(() => {
+    // The list arrives sorted, with ties and blanks settled. The grid sorts what it is given again
+    // with the column's compare: comparing places makes it keep the order it was given.
+    const keep = (a: Ranked, b: Ranked) => (sort.sortDirection === 'ascending' ? a.rank - b.rank : b.rank - a.rank)
+    const out: TableColumnDefinition<Ranked>[] = [
+      // A compare that takes no arguments marks a column the grid can't sort by.
+      createTableColumn<Ranked>({ columnId: 'rank', compare: () => 0, renderHeaderCell: () => '#', renderCell: (x) => <span className={s.rank}>{x.rank}</span> }),
+      createTableColumn<Ranked>({
+        columnId: 'name',
+        compare: keep,
+        renderHeaderCell: () => 'Charity',
+        renderCell: ({ row: r }) => (
+          <span className={s.name}>
+            <CharityLink cc={r.cc}>{r.name}</CharityLink>
+            <Caption1 className={s.muted}>{[r.cc, bandName(r.band), r.sector].filter(Boolean).join(' · ')}</Caption1>
+          </span>
+        ),
+      }),
+    ]
+    if (pick !== 'income' && !compact) {
+      out.push(
+        createTableColumn<Ranked>({
+          columnId: 'income',
+          compare: keep,
+          renderHeaderCell: () => 'Revenue',
+          renderCell: ({ row: r }) => <span className={s.number}>{r.values.income === null ? '—' : money(r.values.income)}</span>,
+        }),
+      )
+    }
+    out.push(
+      createTableColumn<Ranked>({
+        columnId: 'value',
+        compare: keep,
+        renderHeaderCell: () => (pick === 'combined' ? 'Signals' : MEASURE[pick].short),
+        renderCell: ({ row: r }) => {
+          const v = valueOf(r)!
+          const lv = levelFor(r)
+          if (pick === 'combined') return v ? <LevelBadge level={r.priority ? 2 : 1}>{formatCount(v)}</LevelBadge> : <span className={s.number}>0</span>
+          return lv ? <LevelBadge level={lv}>{format(v)}</LevelBadge> : <span className={s.number}>{format(v)}</span>
+        },
+      }),
+    )
+    if (!narrow) {
+      out.push(
+        createTableColumn<Ranked>({
+          columnId: 'signals',
+          compare: keep,
+          renderHeaderCell: () => (pick === 'combined' ? 'Which signals' : 'All its signals'),
+          renderCell: ({ row: r }) => (
+            <span className={s.chips}>
+              <SignalChips intel={intel} row={r} max={4} />
+            </span>
+          ),
+        }),
+      )
+    }
+    return out
+  }, [pick, compact, narrow, valueOf, levelFor, format, intel, s, sort.sortDirection])
+
+  const tierLabel = {
+    children: (_: unknown, props: LabelProps) => (
+      <HelpLabel {...props} info={TIER_MEANS}>
+        Reporting tier
+      </HelpLabel>
+    ),
+  }
 
   return (
     <div className={s.layout}>
-      {narrow ? (
-        <div>
-          <Label htmlFor={measureId} size="small">
-            Ranked by
-          </Label>
-          <Select id={measureId} value={pick} onChange={(_, d) => choose(d.value as Pick)}>
-            <option value="combined">All signals combined ({formatCount(counts.get('combined') ?? 0)})</option>
+      {stacked ? (
+        <Field label="Rank the list by">
+          <Select value={pick} onChange={(_, d) => choose(d.value as Pick)}>
+            <option value="combined">
+              {COMBINED} ({countOf('combined')})
+            </option>
             {GROUP_ORDER.map((g) => (
               <optgroup key={g} label={GROUPS[g]}>
                 {MEASURES.filter((m) => m.group === g).map((m) => (
                   <option key={m.key} value={m.key}>
-                    {m.title}
-                    {counts.has(m.key) ? ` (${formatCount(counts.get(m.key)!)})` : ''}
+                    {m.short}
+                    {counts.has(m.key) ? ` (${countOf(m.key)})` : ''}
                   </option>
                 ))}
               </optgroup>
             ))}
           </Select>
-        </div>
+        </Field>
       ) : (
         <Card className={s.rail}>
-          <nav aria-label="Rank the list by">
-            <RailItem label="All signals combined" count={counts.get('combined')} on={pick === 'combined'} onClick={() => choose('combined')} />
+          <MenuList
+            aria-label="Rank the list by"
+            checkedValues={{ measure: [pick] }}
+            onCheckedValueChange={(_, d) => d.checkedItems[0] && choose(d.checkedItems[0] as Pick)}
+          >
+            <MenuItemRadio name="measure" value="combined" secondaryContent={countOf('combined')}>
+              {COMBINED}
+            </MenuItemRadio>
             {GROUP_ORDER.map((g) => (
-              <div key={g}>
-                <div className={s.railGroup}>{GROUPS[g]}</div>
+              <MenuGroup key={g}>
+                <MenuGroupHeader>{GROUPS[g]}</MenuGroupHeader>
                 {MEASURES.filter((m) => m.group === g).map((m) => (
-                  <RailItem key={m.key} label={m.title} count={counts.get(m.key)} on={pick === m.key} onClick={() => choose(m.key)} />
+                  <MenuItemRadio key={m.key} name="measure" value={m.key} secondaryContent={countOf(m.key)}>
+                    {m.short}
+                  </MenuItemRadio>
                 ))}
-              </div>
+              </MenuGroup>
             ))}
-          </nav>
-          <Caption1 className={s.muted} style={{ padding: '10px 8px 0' }}>
-            The number is how many charities a signal picks out. Measures without one are for context: they don't count
-            towards a charity's signals.
+          </MenuList>
+          <Caption1 className={s.railNote}>
+            A number is how many charities that signal picks out. The others give context and do not count as signals.
           </Caption1>
+          <MeasureGuide intel={intel} />
         </Card>
       )}
 
       <div className={s.main}>
-        <Card className={s.card}>
+        <Card size="large" className={s.card}>
           <div className={s.headText}>
             <Caption1 className={s.muted}>Ranked by</Caption1>
-            <Subtitle2 as="h2">{title}</Subtitle2>
+            <Subtitle1 as="h2">{title}</Subtitle1>
             <Body1>
               {info
                 ? info.description
-                : 'How many signals a charity trips at “worth a look” or above. A charity with several is more likely to repay a look than one with a single high figure.'}
+                : `How many signals a charity has at “worth a look” or above. A charity with ${meta.combined_threshold} or more is on the watchlist: several unusual figures together are more likely to be worth checking than 1 on its own.`}
             </Body1>
-            {signal && <Body1 className={s.muted}>{ruleText(meta, signal)}</Body1>}
+            {signal ? (
+              <Body1 className={s.muted}>{ruleText(meta, signal)}</Body1>
+            ) : (
+              pick !== 'combined' && <Body1 className={s.muted}>This figure gives context. It does not count as a signal.</Body1>
+            )}
           </div>
-          <div className={s.tiles}>
-            {tiles.map((t) => (
-              <div key={t.label} className={s.tile} style={{ borderInlineStartColor: t.level === 2 ? '#b3261e' : t.level === 1 ? '#d98300' : 'transparent' }}>
-                <Caption1 className={s.muted}>{t.label}</Caption1>
-                <span className={s.tileValue}>{t.value}</span>
-                <Caption1 className={s.muted}>{t.foot}</Caption1>
-              </div>
+          <div className={s.stats}>
+            {stats.map((t) => (
+              <Stat key={t.label} label={t.label} value={t.value} foot={t.foot} level={t.level} />
             ))}
           </div>
         </Card>
 
-        <Card className={s.card}>
-          <div className={s.toolbar}>
-            <div className={s.pills} role="group" aria-label="Size">
-              <ToggleButton size="small" shape="circular" checked={!size} onClick={() => set({ size: null })}>
-                All sizes
-              </ToggleButton>
-              {BANDS.map((b) => (
-                <ToggleButton key={b} size="small" shape="circular" checked={size === b} onClick={() => set({ size: size === b ? null : String(b) })}>
-                  {bandName(b)}
-                </ToggleButton>
-              ))}
-            </div>
-            <Select aria-label="Sector" value={sector ?? ''} onChange={(_, d) => set({ sector: d.value || null })} style={{ minWidth: '12rem' }}>
-              <option value="">All sectors</option>
-              {meta.sectors.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </Select>
+        <Card size="large" className={s.card}>
+          <div className={s.filters}>
+            <Field label={tierLabel} className={s.field}>
+              <Select value={tier ? String(tier) : ''} onChange={(_, d) => set({ tier: d.value || null })}>
+                <option value="">All tiers</option>
+                {BANDS.map((b) => (
+                  <option key={b} value={b} title={BAND_RANGE[b]}>
+                    {bandName(b)}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Sector" className={s.field}>
+              <Select value={sector ?? ''} onChange={(_, d) => set({ sector: d.value || null })}>
+                <option value="">All sectors</option>
+                {meta.sectors.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
             {levelled && (
-              <div className={s.pills} role="group" aria-label="Which charities">
-                <ToggleButton size="small" shape="circular" checked={atLeast === 0} onClick={() => set({ flagged: null })}>
-                  Every charity
-                </ToggleButton>
-                <ToggleButton size="small" shape="circular" checked={atLeast === 1} onClick={() => set({ flagged: '1' })}>
-                  {pick === 'combined' ? 'On the watchlist' : 'Worth a look or priority'}
-                </ToggleButton>
-                {signal && (
-                  <ToggleButton size="small" shape="circular" checked={atLeast === 2} onClick={() => set({ flagged: '2' })}>
-                    Priority only
-                  </ToggleButton>
-                )}
-              </div>
+              <Field label="Show" className={s.field}>
+                <Select value={String(atLeast)} onChange={(_, d) => set({ show: d.value === '0' ? null : d.value })}>
+                  <option value="0">Every charity</option>
+                  <option value="1">{pick === 'combined' ? 'Only charities on the watchlist' : 'Only worth a look or priority'}</option>
+                  {signal && <option value="2">Only priority</option>}
+                </Select>
+              </Field>
             )}
-          </div>
-          <div className={s.toolbar}>
-            <SearchBox className={s.search} placeholder="Search name or CC number" aria-label="Search the list" value={query} onChange={(_, d) => set({ q: d.value || null })} />
-            <Button
-              appearance="subtle"
-              icon={lowFirst ? <ArrowSortUp20Regular /> : <ArrowSortDown20Regular />}
-              onClick={() => set({ order: lowFirst ? 'high' : 'low' })}
-              title="Change the order"
-            >
-              {lowFirst ? 'Lowest first' : 'Highest first'}
-            </Button>
-            <Body1 className={mergeClasses(s.muted, s.spacer)} aria-live="polite">
-              {formatCount(listed.length)} {listed.length === 1 ? 'charity' : 'charities'}
-            </Body1>
-            <Button appearance="secondary" icon={<ArrowDownload20Regular />} onClick={download} disabled={!listed.length}>
-              Download CSV
-            </Button>
+            <Field label="Find a charity" className={s.search}>
+              <SearchBox placeholder="Name or CC number" value={query} onChange={(_, d) => set({ q: d.value || null })} />
+            </Field>
+            <div className={s.commands}>
+              <Body1 className={s.muted} aria-live="polite">
+                {formatCount(listed.length)} {listed.length === 1 ? 'charity' : 'charities'}
+              </Body1>
+              <Button appearance="secondary" icon={<ArrowDownload20Regular />} onClick={download} disabled={!listed.length}>
+                Download CSV
+              </Button>
+            </div>
           </div>
 
-          {/* Keyed by what is listed, so a changed list is a new box, scrolled to its top. */}
-          <div key={listKey} ref={boxRef} className={s.gridBox}>
-            <Table aria-label={`Charities ranked by ${title.toLowerCase()}`}>
-              <TableHeader className={s.gridHead}>
-                <TableRow>
-                  <TableHeaderCell className={s.rank}>#</TableHeaderCell>
-                  <TableHeaderCell>Charity</TableHeaderCell>
-                  {!compact && <TableHeaderCell className={s.income}>Income</TableHeaderCell>}
-                  <TableHeaderCell className={s.figure}>{pick === 'combined' ? 'Signals' : title}</TableHeaderCell>
-                  {!narrow && <TableHeaderCell>{pick === 'combined' ? 'Which signals' : 'All its signals'}</TableHeaderCell>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {listed.slice(0, shown).map((r, i) => {
-                  const v = valueOf(r)!
-                  const lv = levelFor(r)
-                  return (
-                    <TableRow key={r.cc}>
-                      <TableCell className={s.rank}>{i + 1}</TableCell>
-                      <TableCell>
-                        <span className={s.name}>
-                          <CharityLink cc={r.cc}>{r.name}</CharityLink>
-                          <Caption1 className={s.muted}>{[r.cc, bandName(r.band), r.sector].filter(Boolean).join(' · ')}</Caption1>
-                        </span>
-                      </TableCell>
-                      {!compact && <TableCell className={s.income}>{r.values.income === null ? '—' : money(r.values.income)}</TableCell>}
-                      <TableCell className={s.figure}>
-                        {pick === 'combined' ? (
-                          v ? <LevelBadge level={r.priority ? 2 : 1}>{formatCount(v)}</LevelBadge> : '0'
-                        ) : lv ? (
-                          <LevelBadge level={lv}>{format(v)}</LevelBadge>
-                        ) : (
-                          format(v)
-                        )}
-                      </TableCell>
-                      {!narrow && (
-                        <TableCell className={s.signalCell}>
-                          <SignalChips intel={intel} row={r} max={4} />
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-            {!listed.length && (
-              <Body1 className={s.muted} style={{ display: 'block', padding: '24px', textAlign: 'center' }}>
-                No charity matches. Clear the search or a filter.
-              </Body1>
-            )}
-            <div ref={endRef} className={s.end} aria-hidden="true" />
-          </div>
-          {listed.length > shown && (
-            <Body1 className={s.muted}>
-              Showing {formatCount(shown)} of {formatCount(listed.length)}. Scroll the list for more.
-            </Body1>
-          )}
+          <Grid
+            // A changed list is a new grid: back to its first rows, scrolled to the top.
+            key={`${pick}|${tier}|${sector}|${atLeast}|${query}|${sort.sortColumn}|${sort.sortDirection}`}
+            items={listed}
+            columns={columns}
+            sort={sort}
+            onSort={(next) => setSorts((all) => ({ ...all, [pick]: next }))}
+            label={`Charities ranked by ${title.toLowerCase()}`}
+          />
         </Card>
       </div>
     </div>
   )
 }
 
-function RailItem({ label, count, on, onClick }: { label: string; count: number | undefined; on: boolean; onClick: () => void }) {
+/** The list, as Fluent's data grid: column headings that sort, and more rows as you scroll. */
+function Grid({ items, columns, sort, onSort, label }: {
+  items: Ranked[]
+  columns: TableColumnDefinition<Ranked>[]
+  sort: Sort
+  onSort: (next: Sort) => void
+  label: string
+}) {
   const s = useStyles()
+  const [shown, setShown] = useState(PAGE)
+  const boxRef = useRef<HTMLDivElement>(null)
+  const endRef = useRef<HTMLDivElement>(null)
+  const total = items.length
+  useEffect(() => {
+    const end = endRef.current
+    if (shown >= total || !end) return
+    const observer = new IntersectionObserver((entries) => entries.some((e) => e.isIntersecting) && setShown((n) => n + PAGE), {
+      root: boxRef.current,
+      rootMargin: '0px 0px 400px 0px',
+    })
+    observer.observe(end)
+    return () => observer.disconnect()
+  }, [shown, total])
+
+  if (!total) {
+    return (
+      <div className={s.gridBox}>
+        <EmptyState icon={<Search24Regular />} title="No charities match">
+          Clear the search, or choose another reporting tier, sector or “Show” option.
+        </EmptyState>
+      </div>
+    )
+  }
   return (
-    <button type="button" className={mergeClasses(s.item, on && s.itemOn)} aria-current={on ? 'true' : undefined} onClick={onClick}>
-      <span>{label}</span>
-      {count !== undefined && <span className={s.itemCount}>{formatCount(count)}</span>}
-    </button>
+    <>
+      <div ref={boxRef} className={s.gridBox}>
+        <DataGrid
+          aria-label={label}
+          items={items.slice(0, shown)}
+          columns={columns}
+          sortable
+          sortState={sort}
+          onSortChange={(_, next) => onSort(next as Sort)}
+          getRowId={(x: Ranked) => x.row.cc}
+          focusMode="composite"
+          // Below the columns' least widths the list scrolls sideways in its box, not the page.
+          style={{ minWidth: columns.reduce((sum, c) => sum + Number(columnStyle(c.columnId).minWidth), 0) }}
+        >
+          <DataGridHeader className={s.gridHead}>
+            <DataGridRow>
+              {({ renderHeaderCell, columnId }) => <DataGridHeaderCell style={columnStyle(columnId)}>{renderHeaderCell()}</DataGridHeaderCell>}
+            </DataGridRow>
+          </DataGridHeader>
+          <DataGridBody<Ranked>>
+            {({ item, rowId }) => (
+              <DataGridRow<Ranked> key={rowId}>
+                {({ renderCell, columnId }) => <DataGridCell style={columnStyle(columnId)}>{renderCell(item)}</DataGridCell>}
+              </DataGridRow>
+            )}
+          </DataGridBody>
+        </DataGrid>
+        <div ref={endRef} className={s.end} aria-hidden="true" />
+      </div>
+      {total > shown && (
+        <Caption1 className={s.muted}>
+          Showing {formatCount(shown)} of {formatCount(total)}. Scroll the list for more.
+        </Caption1>
+      )}
+    </>
   )
 }
