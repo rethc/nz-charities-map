@@ -445,49 +445,63 @@ function Trend({ years }: { years: IntelYear[] }) {
   )
 }
 
+/** How its annual returns went, in a sentence: what the card says when there is no table to show. */
+function returnsSummary(detail: IntelCharity, due: number, onTime: number): string {
+  const late = due - onTime
+  if (!due) {
+    if (detail.inGroup) return 'Its group files annual returns for it, so none of its own was due.'
+    // Registered too recently for its first balance date, and the 6 months after it, to have passed.
+    const lastYear = detail.years.at(-1)?.fy ?? 0
+    const isNew = detail.registered !== null && Number(detail.registered.slice(0, 4)) >= lastYear
+    return isNew ? 'Its first annual return is not due yet.' : 'No annual return of its own was due in its last 5 years.'
+  }
+  if (due === 1) return `Its 1 annual return due in the last 5 years was ${onTime ? 'filed on time' : 'late or not filed'}.`
+  if (!late) return `All ${due} of its annual returns due in the last 5 years were filed on time.`
+  return `${onTime || 'None'} of its last ${due} annual returns ${onTime === 1 ? 'was' : 'were'} filed on time. ${late} ${late === 1 ? 'was' : 'were'} late or not filed.`
+}
+
 function Reporting({ intel, detail, row }: { intel: Intel; detail: IntelCharity; row: IntelRow }) {
   const s = useStyles()
   const judged = detail.years.filter((y) => ['on_time', 'late', 'missing'].includes(y.status))
   const onTime = judged.filter((y) => y.status === 'on_time').length
+  // The year-by-year table only earns its room when a return was late or not filed. Then it
+  // lists the years a return was due or filed, not the years none was.
+  const showTable = onTime < judged.length
+  const rows = detail.years.filter((y) => ['on_time', 'late', 'missing', 'processing'].includes(y.status))
   const latest = detail.years.findLast((y) => y.status === 'on_time' || y.status === 'late')
   const quality = detail.why.return_quality
   return (
-    <Panel
-      title="Annual returns"
-      description={
-        judged.length
-          ? `${onTime} of its last ${judged.length} annual returns were filed on time${onTime < judged.length ? `. ${judged.length - onTime} ${judged.length - onTime === 1 ? 'was' : 'were'} late or not filed` : ''}.`
-          : 'No annual return of its own was due in its last 5 years.'
-      }
-    >
-      <div className={s.tableBox}>
-        <Table size="small" aria-label="Its annual returns year by year">
-          <TableHeader>
-            <TableRow>
-              <TableHeaderCell>Year ended</TableHeaderCell>
-              <TableHeaderCell>Due</TableHeaderCell>
-              <TableHeaderCell>Filed</TableHeaderCell>
-              <TableHeaderCell>Status</TableHeaderCell>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {detail.years.map((y) => (
-              <TableRow key={y.fy}>
-                <TableCell>{y.ended ? showShort(y.ended) : y.fy}</TableCell>
-                <TableCell>{y.ended ? showShort(dueDate(y.ended)) : '—'}</TableCell>
-                <TableCell>{y.filed ? `${y.filedBasis === 'estimated' ? 'by ' : ''}${showShort(y.filed)}` : '—'}</TableCell>
-                <TableCell>
-                  {y.status === 'late' || y.status === 'missing' ? (
-                    <LevelBadge level={y.status === 'missing' ? 2 : 1}>{STATUS[y.status]}</LevelBadge>
-                  ) : (
-                    <span className={y.status === 'on_time' ? undefined : s.muted}>{STATUS[y.status]}</span>
-                  )}
-                </TableCell>
+    <Panel title="Annual returns" description={returnsSummary(detail, judged.length, onTime)}>
+      {showTable && (
+        <div className={s.tableBox}>
+          <Table size="small" aria-label="Its annual returns year by year">
+            <TableHeader>
+              <TableRow>
+                <TableHeaderCell>Year ended</TableHeaderCell>
+                <TableHeaderCell>Due</TableHeaderCell>
+                <TableHeaderCell>Filed</TableHeaderCell>
+                <TableHeaderCell>Status</TableHeaderCell>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+            </TableHeader>
+            <TableBody>
+              {rows.map((y) => (
+                <TableRow key={y.fy}>
+                  <TableCell>{y.ended ? showShort(y.ended) : y.fy}</TableCell>
+                  <TableCell>{y.ended ? showShort(dueDate(y.ended)) : '—'}</TableCell>
+                  <TableCell>{y.filed ? `${y.filedBasis === 'estimated' ? 'by ' : ''}${showShort(y.filed)}` : '—'}</TableCell>
+                  <TableCell>
+                    {y.status === 'late' || y.status === 'missing' ? (
+                      <LevelBadge level={y.status === 'missing' ? 2 : 1}>{STATUS[y.status]}</LevelBadge>
+                    ) : (
+                      <span className={y.status === 'on_time' ? undefined : s.muted}>{STATUS[y.status]}</span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
       <dl className={s.facts}>
         {latest && (
           <Fact name="Audit or review of the latest annual return">
@@ -495,9 +509,9 @@ function Reporting({ intel, detail, row }: { intel: Intel; detail: IntelCharity;
             {latest.modified ? ', with a modified opinion' : ''}
           </Fact>
         )}
-        <Fact name="Totals on the latest annual return">
-          {quality ?? (row.values.return_quality === null ? 'There is no published annual return to check.' : 'The totals add up, and none is blank.')}
-        </Fact>
+        {row.values.return_quality !== null && (
+          <Fact name="Totals on the latest annual return">{quality ?? 'The totals add up, and none is blank.'}</Fact>
+        )}
         {detail.balance && (
           <Fact name="Balance date">
             {detail.balance[1]} {MONTHS[detail.balance[0] - 1]}
@@ -505,11 +519,20 @@ function Reporting({ intel, detail, row }: { intel: Intel; detail: IntelCharity;
           </Fact>
         )}
       </dl>
-      <Caption1 className={s.muted}>
-        An annual return is due 6 months after the balance date. Here, late means filed more than {intel.meta.grace_days} days
-        after the due date. The register does not publish the date a return was filed. A date starting with “by” is worked out
-        from the order the register numbered the returns in, and is accurate to within a few days.
-      </Caption1>
+      {showTable ? (
+        <Caption1 className={s.muted}>
+          An annual return is due 6 months after the balance date. Here, late means filed more than {intel.meta.grace_days} days
+          after the due date. The register does not publish the date a return was filed. A date starting with “by” is worked
+          out from the order the register numbered the returns in, and is accurate to within a few days.
+        </Caption1>
+      ) : (
+        judged.length > 0 && (
+          <Caption1 className={s.muted}>
+            An annual return is due 6 months after the balance date. Here, on time means filed within {intel.meta.grace_days} days
+            of the due date.
+          </Caption1>
+        )
+      )}
     </Panel>
   )
 }

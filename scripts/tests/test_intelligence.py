@@ -150,7 +150,10 @@ def test_the_window_follows_a_charity_that_has_filed_this_year():
 def test_group_members_and_new_charities_are_not_called_late():
     member = one([], GroupType=it.rc.GROUP_MEMBER)
     assert {y.status for y in member.years} == {"group"} and member.values["late_returns"] is None
-    assert member.note and "group" in member.note
+    assert member.note and "The group files" in member.note
+    # A member that files for itself too is judged on what it filed, and the note says so.
+    files_too = one(five(), GroupType=it.rc.GROUP_MEMBER)
+    assert "of its own" in files_too.note and files_too.values["late_returns"] == 0
 
     new = one([ret("2025-03-31")], DateRegistered="2024-06-01T00:00:00Z")
     assert [y.status for y in new.years] == ["none", "none", "none", "none", "on_time"]

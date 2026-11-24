@@ -721,7 +721,9 @@ def analyse(feed: Feed, today: date) -> tuple[dict[str, Any], list[Charity]]:
         c = Charity(org=org, cc=cc, name=name, span=years, officers=officers, view=views.get(org["OrganisationId"], {}))
         measure(c, today)
         if rc.is_group_member(org):
-            c.note = "This charity is a member of a registered group. The group files one annual return for all its members."
+            c.note = ("This charity is a member of a registered group, and also files annual returns of its own."
+                      if any(y.ret is not None for y in years) else
+                      "This charity is a member of a registered group. The group files one annual return for all its members.")
         elif all(y.status == "unknown" for y in years):
             c.note = (f"The public data has no annual return from this charity since {fetch_start.year}. "
                       "It may file through a group that the data does not show.")
